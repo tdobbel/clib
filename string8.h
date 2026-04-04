@@ -3,6 +3,8 @@
 
 #include <ctype.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef uint64_t u64;
@@ -21,6 +23,7 @@ typedef struct {
 string8 str_trim_left(string8 s);
 string8 str_trim_right(string8 s);
 string8 str_trim(string8 s);
+void str_read_file(const char *fname, string8 *dst);
 b8 str_equal(string8 s1, string8 s2);
 
 #ifdef STRING_IMPLEMENTATION
@@ -51,6 +54,25 @@ b8 str_equal(string8 s1, string8 s2) {
       return 0;
   }
   return 1;
+}
+
+void str_read_file(const char *fname, string8 *dst) {
+  memset(dst, 0, sizeof(string8));
+  FILE *fp = fopen(fname, "rb");
+  if (fp == NULL) {
+    fprintf(stderr, "Could not open %s\n", fname);
+    return;
+  }
+  fseek(fp, 0, SEEK_END);
+  u64 size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  dst->str = (u8 *)malloc(size);
+  dst->size = size;
+  u64 n_byte_read = fread(dst->str, 1, size, fp);
+  if (n_byte_read != size) {
+    fprintf(stderr, "Could not read %lu bytes from %s\n", size, fname);
+  }
+  fclose(fp);
 }
 
 #endif
