@@ -25,6 +25,7 @@ string8 str_trim_right(string8 s);
 string8 str_trim(string8 s);
 void str_read_file(const char *fname, string8 *dst);
 b8 str_equal(string8 s1, string8 s2);
+b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -73,6 +74,26 @@ void str_read_file(const char *fname, string8 *dst) {
     fprintf(stderr, "Could not read %lu bytes from %s\n", size, fname);
   }
   fclose(fp);
+}
+
+b8 str_split_once(string8 splitted[2], string8 input, string8 delim) {
+  if (input.size < delim.size) {
+    return false;
+  }
+  u64 i = 0;
+  while (i <= input.size - delim.size) {
+    string8 test = (string8){.str = input.str + i, .size = delim.size};
+    if (str_equal(test, delim))
+      break;
+    i++;
+  }
+  if (i > input.size - delim.size)
+    return false;
+  splitted[0] = (string8){.str = input.str, .size = i};
+  u64 iright = i + delim.size;
+  splitted[1] =
+      (string8){.str = input.str + iright, .size = input.size - iright};
+  return true;
 }
 
 #endif
