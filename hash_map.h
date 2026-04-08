@@ -101,6 +101,7 @@ kv_entry hm_get_or_put(hash_map *hm, const void *key);
 void grow_if_needed(hash_map *hm);
 b8 hm_get(hash_map *hm, const void *key, void *value_ptr);
 void hm_put(hash_map *hm, const void *key, const void *value);
+void hm_remove(hash_map *hm, const void *key);
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value);
 void hm_deinit(hash_map *hm);
 
@@ -346,6 +347,14 @@ kv_entry hm_get_or_put(hash_map *hm, const void *key) {
 void hm_put(hash_map *hm, const void *key, const void *value) {
   kv_entry entry = hm_get_or_put(hm, key);
   memcpy(entry.value_ptr, value, hm->ctx.value_size);
+}
+
+void hm_remove(hash_map *hm, const void *key) {
+  u64 index = hm_get_index(hm, key);
+  if (!ISUSED(hm, index))
+    return;
+  hm->fingerprint[index] &= 0xfe;
+  hm->size--;
 }
 
 void hm_deinit(hash_map *hm) {
