@@ -99,7 +99,6 @@ u64 hm_get_index(hash_map *hm, const void *key);
 kv_entry hm_get_entry(hash_map *hm, const void *key);
 kv_entry hm_get_or_put(hash_map *hm, const void *key);
 void grow_if_needed(hash_map *hm);
-b8 hm_get(hash_map *hm, const void *key, void *value_ptr);
 void hm_put(hash_map *hm, const void *key, const void *value);
 void hm_remove(hash_map *hm, const void *key);
 void hm_reset(hash_map *hm);
