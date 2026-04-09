@@ -358,7 +358,7 @@ void hm_remove(hash_map *hm, const void *key) {
 }
 
 void hm_reset(hash_map *hm) {
-  memset(hm->fingerprint, 0, hm->capacity * hm->ctx.key_size);
+  memset(hm->fingerprint, 0, hm->capacity);
   hm->size = 0;
 }
 
