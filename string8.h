@@ -2,6 +2,7 @@
 #define _STRING8_H_
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,7 @@ string8 str_trim(string8 s);
 void str_read_file(const char *fname, string8 *dst);
 b8 str_equal(string8 s1, string8 s2);
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
+string8 str_dup(string8 src);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -94,6 +96,12 @@ b8 str_split_once(string8 splitted[2], string8 input, string8 delim) {
   splitted[1] =
       (string8){.str = input.str + iright, .size = input.size - iright};
   return true;
+}
+
+string8 str_dup(string8 src) {
+  u8 *str = (u8 *)malloc(src.size);
+  memcpy(str, src.str, src.size);
+  return (string8){.str = str, .size = src.size};
 }
 
 #endif
