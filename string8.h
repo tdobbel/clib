@@ -27,7 +27,10 @@ string8 str_trim(string8 s);
 void str_read_file(const char *fname, string8 *dst);
 b8 str_equal(string8 s1, string8 s2);
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
+// Return index of first match if found, haystack.size otherwise
+u64 str_contains(string8 haystack, string8 needle);
 string8 str_dup(string8 src);
+b8 str_parse_unsigned(u64 *v, string8 s);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -78,21 +81,25 @@ void str_read_file(const char *fname, string8 *dst) {
   fclose(fp);
 }
 
+u64 str_contains(string8 haystack, string8 needle) {
+  if (haystack.size < needle.size)
+    return haystack.size;
+  for (u64 i = 0; i < haystack.size - needle.size; ++i) {
+    string8 test = (string8){.str = haystack.str + i, .size = needle.size};
+    if (str_equal(test, needle))
+      return i;
+  }
+  return haystack.size;
+}
+
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim) {
-  if (input.size < delim.size) {
+  if (delim.size == 0)
     return false;
-  }
-  u64 i = 0;
-  while (i <= input.size - delim.size) {
-    string8 test = (string8){.str = input.str + i, .size = delim.size};
-    if (str_equal(test, delim))
-      break;
-    i++;
-  }
-  if (i > input.size - delim.size)
+  u64 indx = str_contains(input, delim);
+  if (indx > input.size - delim.size)
     return false;
-  splitted[0] = (string8){.str = input.str, .size = i};
-  u64 iright = i + delim.size;
+  splitted[0] = (string8){.str = input.str, .size = indx};
+  u64 iright = indx + delim.size;
   splitted[1] =
       (string8){.str = input.str + iright, .size = input.size - iright};
   return true;
@@ -102,6 +109,17 @@ string8 str_dup(string8 src) {
   u8 *str = (u8 *)malloc(src.size);
   memcpy(str, src.str, src.size);
   return (string8){.str = str, .size = src.size};
+}
+
+b8 str_parse_unsigned(u64 *v, const string8 s) {
+  *v = 0;
+  for (u64 i = 0; i < s.size; ++i) {
+    if (s.str[i] < '0' || s.str[i] > '9')
+      return false;
+    *v *= 10;
+    *v += (u64)(s.str[i] - '0');
+  }
+  return true;
 }
 
 #endif
