@@ -27,7 +27,7 @@ vector *split_whitespace(string8 s);
 vector *split(string8 base, string8 sep);
 #endif
 
-#define BASE_CAPACITY 2
+#define BASE_CAPACITY 64
 #define VEC_CREATE(T) vector_create(sizeof(T))
 #define VEC_PUSH(vec, T, x) (*(T *)vector_append_get((vec)) = (x))
 
@@ -49,7 +49,7 @@ vector *split(string8 base, string8 sep);
           realloc(meta, sizeof(*(vec)) * meta->capacity + sizeof(vec_meta));   \
       (vec) = (void *)(meta + 1);                                              \
     }                                                                          \
-    (vec)[((vec_meta *)(vec) - 1)->size++] = (x);                              \
+    (vec)[meta->size++] = (x);                                                 \
   } while (0)
 
 #define HVEC_FREE(vec) free((vec_meta *)(vec) - 1)
