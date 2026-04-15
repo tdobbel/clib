@@ -9,6 +9,10 @@
 typedef uint64_t u64;
 
 typedef struct {
+  u64 size, capacity;
+} vec_meta;
+
+typedef struct {
   u64 elem_size, capacity, size;
   void *data;
 } vector;
@@ -23,9 +27,32 @@ vector *split_whitespace(string8 s);
 vector *split(string8 base, string8 sep);
 #endif
 
-#define BASE_CAPACITY 64
+#define BASE_CAPACITY 2
 #define VEC_CREATE(T) vector_create(sizeof(T))
 #define VEC_PUSH(vec, T, x) (*(T *)vector_append_get((vec)) = (x))
+
+#define HVEC_LEN(vec) ((vec_meta *)(vec) - 1)->size
+
+#define HVEC_PUSH(vec, x)                                                      \
+  do {                                                                         \
+    if ((vec) == NULL) {                                                       \
+      (vec) = malloc(sizeof(*(vec)) * BASE_CAPACITY + sizeof(vec_meta));       \
+      vec_meta *meta = (vec_meta *)(vec);                                      \
+      meta->capacity = BASE_CAPACITY;                                          \
+      meta->size = 0;                                                          \
+      (vec) = (void *)(meta + 1);                                              \
+    }                                                                          \
+    vec_meta *meta = (vec_meta *)(vec) - 1;                                    \
+    if (meta->size >= meta->capacity) {                                        \
+      meta->capacity *= 2;                                                     \
+      meta =                                                                   \
+          realloc(meta, sizeof(*(vec)) * meta->capacity + sizeof(vec_meta));   \
+      (vec) = (void *)(meta + 1);                                              \
+    }                                                                          \
+    (vec)[((vec_meta *)(vec) - 1)->size++] = (x);                              \
+  } while (0)
+
+#define HVEC_FREE(vec) free((vec_meta *)(vec) - 1)
 
 #ifdef VECTOR_IMPLEMENTATION
 
