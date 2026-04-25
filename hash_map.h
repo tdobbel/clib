@@ -137,7 +137,6 @@ b8 get_next(kv_iterator *kv_iter);
 
 #include "string8.h"
 
-vector *split_whitespace(string8 s);
 b8 string8_eql(const hash_map_context ctx, const void *a, const void *b);
 
 #endif
