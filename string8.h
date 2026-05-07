@@ -2,6 +2,7 @@
 #define _STRING8_H_
 
 #include <ctype.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 
 typedef uint64_t u64;
 typedef uint8_t u8;
+typedef double f64 ;
 typedef u8 b8;
 
 typedef struct {
@@ -31,6 +33,7 @@ b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 u64 str_contains(string8 haystack, string8 needle);
 string8 str_dup(string8 src);
 b8 str_parse_unsigned(u64 *v, string8 s);
+f64 str_parse_float(const string8 s);
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -120,6 +123,14 @@ b8 str_parse_unsigned(u64 *v, const string8 s) {
     *v += (u64)(s.str[i] - '0');
   }
   return true;
+}
+
+f64 str_parse_float(const string8 s) {
+  assert(s.size < 128);
+  char input[128];
+  memcpy(input, s.str, s.size);
+  input[s.size] = '\0';
+  return atof(input);
 }
 
 #endif
