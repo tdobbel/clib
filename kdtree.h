@@ -1,5 +1,5 @@
-#ifndef _HASHMAP_H_
-#define _HASHMAP_H_
+#ifndef _KDTREE_H_
+#define _KDTREE_H_
 
 #include <math.h>
 #include <stdbool.h>
@@ -86,7 +86,7 @@ void tree_free(kdtree *tree);
 b32 tree_add(kdtree *tree, const f64 *x);
 void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 **ids,
                    f64 **distances);
-kdtree tree_from_points(u64 n, const f64 **x, f64 buffer);
+kdtree tree_from_points(u64 n, const f64 *x, f64 buffer);
 
 #ifdef KDTREE_IMPLEMENTATION
 
@@ -114,7 +114,7 @@ b32 tree_add(kdtree *tree, const f64 *x) {
 }
 
 b32 cell_add(cell *c, const u64 id, const f64 *x) {
-  if (within_radius(c, x, 0))
+  if (!within_radius(c, x, 0))
     return false;
   if (c->leaf) {
     u32 ip = c->leaf->n;
@@ -155,7 +155,7 @@ void cell_split(cell *c) {
   }
   for (u32 j = 0; j < c->leaf->n; ++j) {
     for (u32 i = 0; i < NSUB; ++i) {
-      b32 added = cell_add(&c->sub[j], c->leaf->id[j], c->leaf->x[j]);
+      b32 added = cell_add(&c->sub[i], c->leaf->id[j], c->leaf->x[j]);
       if (added)
         break;
     }
@@ -208,7 +208,7 @@ void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
   }
 }
 
-kdtree tree_from_points(u64 n, const f64 **x, f64 buffer) {
+kdtree tree_from_points(u64 n, const f64 *x, f64 buffer) {
   f64 xmin[DIM];
   f64 xmax[DIM];
   for (u32 i = 0; i < DIM; ++i) {
@@ -217,8 +217,8 @@ kdtree tree_from_points(u64 n, const f64 **x, f64 buffer) {
   }
   for (u64 i = 0; i < n; ++i) {
     for (u32 j = 0; j < DIM; ++j) {
-      xmin[j] = fmin(xmin[j], x[i][j]);
-      xmax[j] = fmax(xmin[j], x[i][j]);
+      xmin[j] = fmin(xmin[j], x[DIM * i + j]);
+      xmax[j] = fmax(xmax[j], x[DIM * i + j]);
     }
   }
   for (u32 i = 0; i < DIM; ++i) {
@@ -227,7 +227,7 @@ kdtree tree_from_points(u64 n, const f64 **x, f64 buffer) {
   }
   kdtree tree = tree_create(xmin, xmax);
   for (u64 i = 0; i < n; ++i) {
-    tree_add(&tree, x[i]);
+    tree_add(&tree, x + DIM * i);
   }
   return tree;
 }
