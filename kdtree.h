@@ -37,7 +37,7 @@ typedef struct {
   cell *root;
 } kdtree;
 
-static inline f64 distance(const f64 *xa, const f64 *xb) {
+static inline f64 compute_distance(const f64 *xa, const f64 *xb) {
   f64 d2 = 0;
   for (u32 i = 0; i < DIM; ++i) {
     d2 += (xa[i] - xb[i]) * (xa[i] - xb[i]);
@@ -196,7 +196,7 @@ void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
   }
   if (c->leaf) {
     for (u32 i = 0; i < MAXP; ++i) {
-      f64 d = distance(xp, c->leaf->x[i]);
+      f64 d = compute_distance(xp, c->leaf->x[i]);
       if (d < radius)
         add_point(c->leaf->id[i], d, n, nalloc, ids, distances);
     }
