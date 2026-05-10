@@ -20,7 +20,7 @@ typedef uint8_t u8;
 typedef u8 b8;
 
 #define SEED 0x00000000
-#define BASE_CAPACITY 16
+#define BASE_HM_CAPACITY 16
 #define DEFAULT_MAX_LOAD_FACTOR 80
 
 #define READ4(a) (u64)(*(u32 *)(a))
@@ -106,7 +106,7 @@ void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value);
 void hm_deinit(hash_map *hm);
 
 #define AUTO_HASHMAP(K, V)                                                     \
-  hm_init(BASE_CAPACITY,                                                       \
+  hm_init(BASE_HM_CAPACITY,                                                    \
           (hash_map_context){.key_size = sizeof(K), .value_size = sizeof(V)},  \
           wyhash_auto, bytes_eql);
 
@@ -116,7 +116,7 @@ b8 string8_eql(const hash_map_context ctx, const void *a, const void *b);
 u64 wyhash_string8(const hash_map_context ctx, const void *strkey);
 
 #define STRING_HASHMAP(V)                                                      \
-  hm_init(BASE_CAPACITY,                                                       \
+  hm_init(BASE_HM_CAPACITY,                                                    \
           (hash_map_context){.key_size = sizeof(string8),                      \
                              .value_size = sizeof(V)},                         \
           wyhash_string8, string8_eql);

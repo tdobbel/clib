@@ -2,11 +2,14 @@
 #define _COLLECTIONS_H_
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 typedef uint64_t u64;
+typedef uint8_t u8;
+typedef u8 b8;
 
 typedef struct {
   u64 size, capacity;
@@ -21,13 +24,15 @@ vector *vector_create(u64 elem_size);
 void vector_free(vector *vec);
 void *vector_get(vector *vec, u64 index);
 void *vector_append_get(vector *vec);
+b8 vector_contains(vector *vec, const void *x);
+void vector_extend(vector *vec, vector *extra_vec);
 
 #ifdef STRING_IMPLEMENTATION
 vector *split_whitespace(string8 s);
 vector *split(string8 base, string8 sep);
 #endif
 
-#define BASE_CAPACITY 64
+#define BASE_VEC_CAPACITY 64
 #define VEC_CREATE(T) vector_create(sizeof(T))
 #define VEC_PUSH(vec, T, x) (*(T *)vector_append_get((vec)) = (x))
 
@@ -36,9 +41,9 @@ vector *split(string8 base, string8 sep);
 #define HVEC_PUSH(vec, x)                                                      \
   do {                                                                         \
     if ((vec) == NULL) {                                                       \
-      (vec) = malloc(sizeof(*(vec)) * BASE_CAPACITY + sizeof(vec_meta));       \
+      (vec) = malloc(sizeof(*(vec)) * BASE_VEC_CAPACITY + sizeof(vec_meta));   \
       vec_meta *meta = (vec_meta *)(vec);                                      \
-      meta->capacity = BASE_CAPACITY;                                          \
+      meta->capacity = BASE_VEC_CAPACITY;                                      \
       meta->size = 0;                                                          \
       (vec) = (void *)(meta + 1);                                              \
     }                                                                          \
@@ -60,8 +65,8 @@ vector *vector_create(u64 elem_size) {
   vector *vec = (vector *)malloc(sizeof(vector));
   vec->size = 0;
   vec->elem_size = elem_size;
-  vec->capacity = BASE_CAPACITY;
-  vec->data = malloc(BASE_CAPACITY * elem_size);
+  vec->capacity = BASE_VEC_CAPACITY;
+  vec->data = malloc(BASE_VEC_CAPACITY * elem_size);
   return vec;
 }
 
@@ -83,6 +88,33 @@ void vector_free(vector *vec) {
     return;
   free(vec->data);
   free(vec);
+}
+
+b8 vector_contains(vector *vec, const void *x) {
+  u8 *needle = (u8 *)x;
+  for (u64 i = 0; i < vec->size; ++i) {
+    u8 *elem = (u8 *)vec->data + i * vec->elem_size;
+    u64 j;
+    for (j = 0; j < vec->elem_size && elem[j] == needle[j]; ++j) {
+      ;
+    }
+    if (j == vec->elem_size)
+      return true;
+  }
+  return false;
+}
+
+void vector_extend(vector *vec, vector *extra_vec) {
+  assert(vec->elem_size == extra_vec->elem_size);
+  u64 start_indx = vec->size;
+  u64 new_size = start_indx + extra_vec->size;
+  while (vec->capacity < new_size) {
+    vec->capacity *= 2;
+    vec->data = realloc(vec->data, vec->capacity * vec->elem_size);
+  }
+  memcpy((u8 *)vec->data + start_indx * vec->elem_size, (u8 *)extra_vec->data,
+         extra_vec->size * vec->elem_size);
+  vec->size = new_size;
 }
 
 #ifdef STRING_IMPLEMENTATION

@@ -84,8 +84,8 @@ void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
 kdtree tree_create(const f64 *xmin, const f64 *xmax);
 void tree_free(kdtree *tree);
 b32 tree_add(kdtree *tree, const f64 *x);
-void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 **ids,
-                   f64 **distances);
+void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
+                   u64 **ids, f64 **distances);
 kdtree tree_from_points(u64 n, const f64 *x, f64 buffer);
 
 #ifdef KDTREE_IMPLEMENTATION
@@ -180,13 +180,15 @@ void cell_free(cell *c) {
   }
 }
 
-void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 **ids,
-                   f64 **distances) {
+void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
+                   u64 **ids, f64 **distances) {
   *n = 0;
-  u64 nalloc = 1024;
-  *ids = (u64 *)malloc(sizeof(u64) * nalloc);
-  *distances = (f64 *)malloc(sizeof(f64) * nalloc);
-  cell_search_radius(tree->root, xp, radius, n, &nalloc, ids, distances);
+  if (*nalloc == 0) {
+    *nalloc = 512;
+    *ids = (u64 *)malloc(sizeof(u64) * (*nalloc));
+    *distances = (f64 *)malloc(sizeof(f64) * (*nalloc));
+  }
+  cell_search_radius(tree->root, xp, radius, n, nalloc, ids, distances);
 }
 
 void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
@@ -195,7 +197,7 @@ void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
     return;
   }
   if (c->leaf) {
-    for (u32 i = 0; i < MAXP; ++i) {
+    for (u32 i = 0; i < c->leaf->n; ++i) {
       f64 d = compute_distance(xp, c->leaf->x[i]);
       if (d < radius)
         add_point(c->leaf->id[i], d, n, nalloc, ids, distances);
