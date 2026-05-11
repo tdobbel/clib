@@ -97,6 +97,7 @@ static u64 ensure_pow2(u64 cap);
 hash_map *hm_init(u64 capacity, hash_map_context ctx, hash_fn hash, eq_fn eq);
 u64 hm_get_index(hash_map *hm, const void *key);
 kv_entry hm_get_entry(hash_map *hm, const void *key);
+u8 *hm_get_value(hash_map *hm, const void *key);
 kv_entry hm_get_or_put(hash_map *hm, const void *key);
 void grow_if_needed(hash_map *hm);
 void hm_put(hash_map *hm, const void *key, const void *value);
@@ -109,6 +110,8 @@ void hm_deinit(hash_map *hm);
   hm_init(BASE_HM_CAPACITY,                                                    \
           (hash_map_context){.key_size = sizeof(K), .value_size = sizeof(V)},  \
           wyhash_auto, bytes_eql);
+
+#define HM_GET(T, hm, key) (*(T *)hm_get_value(hm, key))
 
 #ifdef STRING_IMPLEMENTATION
 
@@ -290,6 +293,12 @@ kv_entry hm_get_entry(hash_map *hm, const void *key) {
   u8 *value_ptr = hm->values + indx * hm->ctx.value_size;
   return (kv_entry){
       .found_existing = 1, .key_ptr = key_ptr, .value_ptr = value_ptr};
+}
+
+u8 *hm_get_value(hash_map *hm, const void *key) {
+  kv_entry entry = hm_get_entry(hm, key);
+  assert(entry.found_existing);
+  return (u8 *)entry.value_ptr;
 }
 
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value) {
