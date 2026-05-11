@@ -28,8 +28,8 @@ b8 vector_contains(vector *vec, const void *x);
 void vector_extend(vector *vec, vector *extra_vec);
 
 #ifdef STRING_IMPLEMENTATION
-vector *split_whitespace(string8 s);
-vector *split(string8 base, string8 sep);
+void split_whitespace(vector *vec, string8 s);
+void split(vector *vec, string8 base, string8 sep);
 #endif
 
 #define BASE_VEC_CAPACITY 64
@@ -119,8 +119,8 @@ void vector_extend(vector *vec, vector *extra_vec) {
 
 #ifdef STRING_IMPLEMENTATION
 
-vector *split_whitespace(string8 s) {
-  vector *vec = VEC_CREATE(string8);
+void split_whitespace(vector *vec, string8 s) {
+  vec->size = 0;
   string8 s2 = str_trim(s);
   while (s2.size > 0) {
     u64 start = 0;
@@ -133,16 +133,15 @@ vector *split_whitespace(string8 s) {
     string8 r = (string8){.str = s2.str + end, .size = s2.size - end};
     s2 = str_trim_left(r);
   }
-  return vec;
 }
 
-vector *split(string8 base, string8 sep) {
-  vector *vec = VEC_CREATE(string8);
+void split(vector *vec, string8 base, string8 sep) {
+  vec->size = 0;
   u64 start = 0;
   u64 end = start;
   if (sep.size > base.size || sep.size == 0) {
     VEC_PUSH(vec, string8, base);
-    return vec;
+    return;
   }
   while (end <= base.size - sep.size) {
     string8 test = (string8){.str = base.str + end, .size = sep.size};
@@ -163,7 +162,6 @@ vector *split(string8 base, string8 sep) {
         (string8){.str = base.str + start, .size = base.size - start};
     VEC_PUSH(vec, string8, part);
   }
-  return vec;
 }
 
 #endif
