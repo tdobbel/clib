@@ -23,15 +23,20 @@ typedef struct {
 #define STR8_FMT "%.*s"
 #define STR8_UNWRAP(s) (int)(s).size, (char *)(s).str
 
+b8 str_equal(string8 s1, string8 s2);
+
 string8 str_trim_left(string8 s);
 string8 str_trim_right(string8 s);
 string8 str_trim(string8 s);
-void str_read_file(string8 *dst, const char *fname);
-b8 str_equal(string8 s1, string8 s2);
-b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
+b8 str_ends_with(string8 s, string8 suffix);
+string8 str_remove_suffix(string8 s, string8 suffix);
 // Return index of first match if found, haystack.size otherwise
 u64 str_contains(string8 haystack, string8 needle);
+
+void str_read_file(string8 *dst, const char *fname);
 string8 str_dup(string8 src);
+b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
+
 b8 str_parse_unsigned(u64 *v, string8 s);
 f64 str_parse_float(const string8 s);
 
@@ -63,6 +68,21 @@ b8 str_equal(string8 s1, string8 s2) {
       return 0;
   }
   return 1;
+}
+
+b8 str_ends_with(string8 s, string8 suffix) {
+  if (suffix.size > s.size)
+    return false;
+  u64 indx = s.size - suffix.size;
+  string8 tail = (string8){.str = s.str + indx, .size = suffix.size};
+  return str_equal(tail, suffix);
+}
+
+string8 str_remove_suffix(string8 s, string8 suffix) {
+  if (!str_ends_with(s, suffix)) {
+    return s;
+  }
+  return (string8){.str = s.str, .size = s.size - suffix.size};
 }
 
 void str_read_file(string8 *dst, const char *fname) {
