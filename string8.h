@@ -26,7 +26,7 @@ typedef struct {
 string8 str_trim_left(string8 s);
 string8 str_trim_right(string8 s);
 string8 str_trim(string8 s);
-void str_read_file(const char *fname, string8 *dst);
+void str_read_file(string8 *dst, const char *fname);
 b8 str_equal(string8 s1, string8 s2);
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 // Return index of first match if found, haystack.size otherwise
@@ -65,12 +65,12 @@ b8 str_equal(string8 s1, string8 s2) {
   return 1;
 }
 
-void str_read_file(const char *fname, string8 *dst) {
+void str_read_file(string8 *dst, const char *fname) {
   memset(dst, 0, sizeof(string8));
   FILE *fp = fopen(fname, "rb");
   if (fp == NULL) {
     fprintf(stderr, "Could not open %s\n", fname);
-    return;
+    exit(1);
   }
   fseek(fp, 0, SEEK_END);
   u64 size = ftell(fp);
@@ -80,6 +80,8 @@ void str_read_file(const char *fname, string8 *dst) {
   u64 n_byte_read = fread(dst->str, 1, size, fp);
   if (n_byte_read != size) {
     fprintf(stderr, "Could not read %lu bytes from %s\n", size, fname);
+    fclose(fp);
+    exit(1);
   }
   fclose(fp);
 }
