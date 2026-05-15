@@ -1,8 +1,8 @@
 #ifndef _STRING8_H_
 #define _STRING8_H_
 
-#include <ctype.h>
 #include <assert.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,7 +11,7 @@
 
 typedef uint64_t u64;
 typedef uint8_t u8;
-typedef double f64 ;
+typedef double f64;
 typedef u8 b8;
 
 typedef struct {
@@ -30,6 +30,8 @@ string8 str_trim_right(string8 s);
 string8 str_trim(string8 s);
 b8 str_ends_with(string8 s, string8 suffix);
 string8 str_remove_suffix(string8 s, string8 suffix);
+b8 str_starts_with(string8 s, string8 prefix);
+string8 str_remove_prefix(string8 s, string8 prefix);
 // Return index of first match if found, haystack.size otherwise
 u64 str_contains(string8 haystack, string8 needle);
 
@@ -83,6 +85,19 @@ string8 str_remove_suffix(string8 s, string8 suffix) {
     return s;
   }
   return (string8){.str = s.str, .size = s.size - suffix.size};
+}
+
+b8 str_starts_with(string8 s, string8 prefix) {
+  if (prefix.size > s.size)
+    return false;
+  string8 head = (string8){.str = s.str, .size = prefix.size};
+  return str_equal(head, prefix);
+}
+
+string8 str_remove_prefix(string8 s, string8 prefix) {
+  if (!str_starts_with(s, prefix))
+    return s;
+  return (string8){.str = s.str + prefix.size, .size = (s.size - prefix.size)};
 }
 
 void str_read_file(string8 *dst, const char *fname) {
