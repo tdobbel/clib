@@ -98,6 +98,7 @@ hash_map *hm_init(u64 capacity, hash_map_context ctx, hash_fn hash, eq_fn eq);
 u64 hm_get_index(hash_map *hm, const void *key);
 kv_entry hm_get_entry(hash_map *hm, const void *key);
 u8 *hm_get_value(hash_map *hm, const void *key);
+u8 *hm_values(hash_map *hm);
 kv_entry hm_get_or_put(hash_map *hm, const void *key);
 void grow_if_needed(hash_map *hm);
 void hm_put(hash_map *hm, const void *key, const void *value);
@@ -299,6 +300,19 @@ u8 *hm_get_value(hash_map *hm, const void *key) {
   kv_entry entry = hm_get_entry(hm, key);
   assert(entry.found_existing);
   return (u8 *)entry.value_ptr;
+}
+
+u8 *hm_values(hash_map *hm) {
+  u64 bytesize = hm->ctx.value_size;
+  u8 *values = malloc(hm->size * bytesize);
+  u64 cntr = 0;
+  for (u64 i = 0; i < hm->capacity; ++i) {
+    if (!ISUSED(hm, i))
+      continue;
+    memcpy(values + cntr * bytesize, hm->values + i * bytesize, bytesize);
+    cntr++;
+  }
+  return values;
 }
 
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value) {
