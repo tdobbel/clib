@@ -39,6 +39,9 @@ void str_read_file(string8 *dst, const char *fname);
 string8 str_dup(string8 src);
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 
+void str_join(string8 *dst, const string8 glue, u64 n_elem,
+              const string8 *elems);
+
 b8 str_parse_unsigned(u64 *v, string8 s);
 f64 str_parse_float(const string8 s);
 
@@ -149,6 +152,28 @@ string8 str_dup(string8 src) {
   u8 *str = (u8 *)malloc(src.size);
   memcpy(str, src.str, src.size);
   return (string8){.str = str, .size = src.size};
+}
+
+void str_join(string8 *dst, const string8 glue, u64 n_elem,
+              const string8 *elems) {
+  memset(dst, 0, sizeof(string8));
+  if (n_elem == 0)
+    return;
+  u64 size = (n_elem - 1) * glue.size;
+  for (u64 i = 0; i < n_elem; ++i) {
+    size += elems[i].size;
+  }
+  dst->str = (u8 *)malloc(size);
+  dst->size = size;
+  u64 iptr = 0;
+  for (u64 i = 0; i < n_elem; ++i) {
+    if (i > 0) {
+      memcpy(dst->str + iptr, glue.str, glue.size);
+      iptr += glue.size;
+    }
+    memcpy(dst->str + iptr, elems[i].str, elems[i].size);
+    iptr += elems[i].size;
+  }
 }
 
 b8 str_parse_unsigned(u64 *v, const string8 s) {
