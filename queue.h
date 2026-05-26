@@ -1,0 +1,112 @@
+#ifndef _QUEUE_H_
+#define _QUEUE_H_
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef uint64_t u64;
+typedef uint8_t u8;
+
+#define BASE_QUEUE_CAPACITY 64
+
+typedef struct {
+  u8 *data;
+  u64 elem_size;
+  u64 start, size, capacity;
+} queue;
+
+typedef struct {
+  u64 capacity, size;
+  u64 start;
+} queue_meta;
+
+queue *queue_create(u64 elem_size);
+u8 *queue_push(queue *q);
+u8 *queue_pop(queue *q);
+void queue_free(queue *q);
+
+#define QUEUE_CREATE(T) queue_create(sizeof(T))
+#define QUEUE_POP(q, T) *(T *)queue_pop(q)
+#define QUEUE_PUSH(q, T, x) (*(T *)queue_push(q) = (x))
+
+#define HQUEUE_LEN(q) ((queue_meta *)(q) - 1)->size
+
+#define HQUEUE_PUSH(q, x)                                                      \
+  do {                                                                         \
+    if ((q) == NULL) {                                                         \
+      (q) = malloc(sizeof(*(q)) * BASE_QUEUE_CAPACITY + sizeof(queue_meta));   \
+      queue_meta *meta = (queue_meta *)(q);                                    \
+      meta->capacity = BASE_QUEUE_CAPACITY;                                    \
+      meta->size = 0;                                                          \
+      meta->start = 0;                                                         \
+      (q) = (void *)(meta + 1);                                                \
+    }                                                                          \
+    queue_meta *meta = (queue_meta *)(q) - 1;                                  \
+    if (meta->size == meta->capacity) {                                        \
+      u64 old_cap = meta->capacity;                                            \
+      u64 ncopy = (meta->start + meta->size) & (meta->capacity - 1);           \
+      meta->capacity *= 2;                                                     \
+      meta =                                                                   \
+          realloc(meta, sizeof(*(q)) * meta->capacity + sizeof(queue_meta));   \
+      (q) = (void *)(meta + 1);                                                \
+      memcpy((q) + old_cap, (q), ncopy * sizeof(*(q)));                        \
+    }                                                                          \
+    (q)[(meta->start + meta->size++) & (meta->capacity - 1)] = (x);            \
+  } while (0)
+
+#define HQUEUE_POP(q, v)                                                       \
+  do {                                                                         \
+    queue_meta *meta = (queue_meta *)(q) - 1;                                  \
+    if (meta->size > 0) {                                                      \
+      *(v) = q[meta->start];                                                   \
+      meta->size--;                                                            \
+      meta->start = (meta->start + 1) & (meta->capacity - 1);                  \
+    }                                                                          \
+  } while (0)
+
+#define HQUEUE_FREE(q) free((queue_meta *)(q) - 1)
+
+#ifdef QUEUE_IMPLEMENTATION
+
+
+queue *queue_create(u64 elem_size) {
+  queue *q = (queue *)malloc(sizeof(queue));
+  q->data = (u8 *)malloc(BASE_QUEUE_CAPACITY * elem_size);
+  q->elem_size = elem_size;
+  q->size = 0;
+  q->start = 0;
+  q->capacity = BASE_QUEUE_CAPACITY;
+  return q;
+}
+
+u8 *queue_pop(queue *q) {
+  if (q->size == 0)
+    return NULL;
+  u8 *v = q->data + q->elem_size * q->start;
+  q->start = (q->start + 1) & (q->capacity - 1);
+  q->size--;
+  return v;
+}
+
+u8 *queue_push(queue *q) {
+  if (q->size == q->capacity) {
+    u64 old_cap = q->capacity;
+    q->capacity *= 2;
+    q->data = (u8 *)realloc(q->data, q->capacity * q->elem_size);
+    u64 ncopy = (q->start + q->size) & (old_cap - 1);
+    memcpy(q->data + q->elem_size * old_cap, q->data, ncopy * q->elem_size);
+  }
+  u64 indx = (q->start + q->size) & (q->capacity - 1);
+  q->size++;
+  return q->data + indx * q->elem_size;
+}
+
+void queue_free(queue *q) {
+  free(q->data);
+  free(q);
+}
+
+#endif
+
+#endif
