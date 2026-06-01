@@ -7,6 +7,7 @@
 
 typedef uint64_t u64;
 typedef uint8_t u8;
+typedef u8 b8;
 
 #define BASE_QUEUE_CAPACITY 64
 
@@ -25,6 +26,7 @@ queue *queue_create(u64 elem_size);
 u8 *queue_push(queue *q);
 u8 *queue_pop(queue *q);
 void queue_free(queue *q);
+b8 queue_contains(queue *q, const void *x);
 
 #define QUEUE_CREATE(T) queue_create(sizeof(T))
 #define QUEUE_POP(q, T) *(T *)queue_pop(q)
@@ -69,7 +71,6 @@ void queue_free(queue *q);
 
 #ifdef QUEUE_IMPLEMENTATION
 
-
 queue *queue_create(u64 elem_size) {
   queue *q = (queue *)malloc(sizeof(queue));
   q->data = (u8 *)malloc(BASE_QUEUE_CAPACITY * elem_size);
@@ -105,6 +106,22 @@ u8 *queue_push(queue *q) {
 void queue_free(queue *q) {
   free(q->data);
   free(q);
+}
+
+b8 queue_contains(queue *q, const void *x) {
+  u8 *needle = (u8 *)x;
+  u64 cntr;
+  for (u64 i = 0; i < q->size; i++) {
+    u8 *elem = q->data + q->elem_size * ((q->start + i) & (q->capacity - 1));
+    cntr = 0;
+    for (u64 ibit = 0; ibit < q->elem_size && elem[ibit] == needle[ibit];
+         ++ibit) {
+      cntr++;
+    }
+    if (cntr == q->elem_size)
+      return true;
+  }
+  return false;
 }
 
 #endif
