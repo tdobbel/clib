@@ -1,5 +1,5 @@
-#ifndef _COLLECTIONS_H_
-#define _COLLECTIONS_H_
+#ifndef _VECTOR_H_
+#define _VECTOR_H_
 
 #include <assert.h>
 #include <stdbool.h>
