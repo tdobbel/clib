@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define ARENA_IMPLEMENTATION
+#include "arena.h"
+
 typedef uint64_t u64;
 typedef uint8_t u8;
 typedef double f64;
@@ -35,11 +38,14 @@ string8 str_remove_prefix(string8 s, string8 prefix);
 // Return index of first match if found, haystack.size otherwise
 u64 str_contains(string8 haystack, string8 needle);
 
-void str_read_file(string8 *dst, const char *fname);
-string8 str_dup(string8 src);
+string8 str_to_lowercase(mem_arena *arena, string8 s);
+string8 str_to_uppercase(mem_arena *arena, string8 s);
+
+void str_read_file(mem_arena *arena, string8 *dst, const char *fname);
+string8 str_dup(mem_arena *arena, string8 src);
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 
-void str_join(string8 *dst, const string8 glue, u64 n_elem,
+void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
               const string8 *elems);
 
 b8 str_parse_unsigned(u64 *v, string8 s);
@@ -103,7 +109,7 @@ string8 str_remove_prefix(string8 s, string8 prefix) {
   return (string8){.str = s.str + prefix.size, .size = (s.size - prefix.size)};
 }
 
-void str_read_file(string8 *dst, const char *fname) {
+void str_read_file(mem_arena *arena, string8 *dst, const char *fname) {
   memset(dst, 0, sizeof(string8));
   FILE *fp = fopen(fname, "rb");
   if (fp == NULL) {
@@ -113,7 +119,7 @@ void str_read_file(string8 *dst, const char *fname) {
   fseek(fp, 0, SEEK_END);
   u64 size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
-  dst->str = (u8 *)malloc(size);
+  dst->str = (u8 *)(arena == NULL ? malloc(size) : PUSH_ARRAY(arena, u8, size));
   dst->size = size;
   u64 n_byte_read = fread(dst->str, 1, size, fp);
   if (n_byte_read != size) {
@@ -148,13 +154,30 @@ b8 str_split_once(string8 splitted[2], string8 input, string8 delim) {
   return true;
 }
 
-string8 str_dup(string8 src) {
-  u8 *str = (u8 *)malloc(src.size);
+string8 str_dup(mem_arena *arena, string8 src) {
+  u8 *str = (u8 *)(arena == NULL ? malloc(src.size)
+                                 : PUSH_ARRAY(arena, u8, src.size));
   memcpy(str, src.str, src.size);
   return (string8){.str = str, .size = src.size};
 }
 
-void str_join(string8 *dst, const string8 glue, u64 n_elem,
+string8 str_to_lowercase(mem_arena *arena, string8 s) {
+  string8 lower = str_dup(arena, s);
+  for (u64 i = 0; i < lower.size; ++i) {
+    lower.str[i] = tolower(lower.str[i]);
+  }
+  return lower;
+}
+
+string8 str_to_uppercase(mem_arena *arena, string8 s) {
+  string8 upper = str_dup(arena, s);
+  for (u64 i = 0; i < upper.size; ++i) {
+    upper.str[i] = toupper(upper.str[i]);
+  }
+  return upper;
+}
+
+void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
               const string8 *elems) {
   memset(dst, 0, sizeof(string8));
   if (n_elem == 0)
@@ -163,7 +186,7 @@ void str_join(string8 *dst, const string8 glue, u64 n_elem,
   for (u64 i = 0; i < n_elem; ++i) {
     size += elems[i].size;
   }
-  dst->str = (u8 *)malloc(size);
+  dst->str = (u8 *)(arena == NULL ? malloc(size) : PUSH_ARRAY(arena, u8, size));
   dst->size = size;
   u64 iptr = 0;
   for (u64 i = 0; i < n_elem; ++i) {
