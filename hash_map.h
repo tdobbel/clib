@@ -19,9 +19,17 @@ typedef int32_t i32;
 typedef uint8_t u8;
 typedef u8 b8;
 
+#ifndef SEED
 #define SEED 0x00000000
+#endif
+
+#ifndef BASE_HM_CAPACITY
 #define BASE_HM_CAPACITY 16
+#endif
+
+#ifndef DEFAULT_MAX_LOAD_FACTOR
 #define DEFAULT_MAX_LOAD_FACTOR 80
+#endif
 
 #define READ4(a) (u64)(*(u32 *)(a))
 

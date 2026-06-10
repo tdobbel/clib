@@ -32,7 +32,10 @@ void split_whitespace(vector *vec, string8 s);
 void split(vector *vec, string8 base, string8 sep);
 #endif
 
+#ifndef BASE_VEC_CAPACITY
 #define BASE_VEC_CAPACITY 64
+#endif
+
 #define VEC_CREATE(T) vector_create(sizeof(T))
 #define VEC_PUSH(vec, T, x) (*(T *)vector_append_get((vec)) = (x))
 

@@ -9,7 +9,9 @@ typedef uint64_t u64;
 typedef uint8_t u8;
 typedef u8 b8;
 
+#ifndef BASE_QUEUE_CAPACITY
 #define BASE_QUEUE_CAPACITY 64
+#endif
 
 typedef struct {
   u8 *data;
