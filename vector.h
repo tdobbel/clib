@@ -7,6 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef ARENA_IMPLEMENTATION
+#define ARENA_IMPLEMENTATION
+#endif
+
+#include "arena.h"
+
 typedef uint64_t u64;
 typedef uint8_t u8;
 typedef u8 b8;
@@ -18,11 +24,13 @@ typedef struct {
 typedef struct {
   u64 elem_size, capacity, size;
   void *data;
+  mem_arena *arena;
 } vector;
 
-vector *vector_create(u64 elem_size);
+vector *vector_create(mem_arena *arena, u64 elem_size);
 void vector_free(vector *vec);
 void *vector_get(vector *vec, u64 index);
+void vector_grow(vector *vec);
 void *vector_append_get(vector *vec);
 b8 vector_contains(vector *vec, const void *x);
 void vector_extend(vector *vec, vector *extra_vec);
@@ -36,7 +44,8 @@ void split(vector *vec, string8 base, string8 sep);
 #define BASE_VEC_CAPACITY 64
 #endif
 
-#define VEC_CREATE(T) vector_create(sizeof(T))
+#define VEC_CREATE(T) vector_create(NULL, sizeof(T))
+#define VEC_ARENA_CREATE(a, T) vector_create(a, sizeof(T))
 #define VEC_PUSH(vec, T, x) (*(T *)vector_append_get((vec)) = (x))
 
 #define HVEC_LEN(vec) ((vec_meta *)(vec) - 1)->size
@@ -64,12 +73,22 @@ void split(vector *vec, string8 base, string8 sep);
 
 #ifdef VECTOR_IMPLEMENTATION
 
-vector *vector_create(u64 elem_size) {
-  vector *vec = (vector *)malloc(sizeof(vector));
+vector *vector_create(mem_arena *arena, u64 elem_size) {
+  vector *vec;
+  if (arena == NULL) {
+    vec = (vector *)malloc(sizeof(vector));
+  } else {
+    vec = ALLOC_STRUCT(arena, vector);
+  }
   vec->size = 0;
   vec->elem_size = elem_size;
   vec->capacity = BASE_VEC_CAPACITY;
-  vec->data = malloc(BASE_VEC_CAPACITY * elem_size);
+  if (arena == NULL) {
+    vec->data = malloc(BASE_VEC_CAPACITY * elem_size);
+  } else {
+    vec->data = arena_alloc(arena, BASE_VEC_CAPACITY * elem_size);
+  }
+  vec->arena = arena;
   return vec;
 }
 
@@ -78,19 +97,32 @@ void *vector_get(vector *vec, u64 index) {
   return (void *)((char *)vec->data + index * vec->elem_size);
 }
 
-void *vector_append_get(vector *vec) {
-  if (vec->size == vec->capacity) {
-    vec->capacity *= 2;
+void vector_grow(vector *vec) {
+  vec->capacity *= 2;
+  if (vec->arena == NULL) {
     vec->data = realloc(vec->data, vec->capacity * vec->elem_size);
+  } else {
+    vec->data =
+        arena_realloc(vec->arena, vec->data, vec->capacity * vec->elem_size);
   }
+}
+
+void *vector_append_get(vector *vec) {
+  if (vec->size == vec->capacity)
+    vector_grow(vec);
   return vector_get(vec, vec->size++);
 }
 
 void vector_free(vector *vec) {
   if (!vec)
     return;
-  free(vec->data);
-  free(vec);
+  if (vec->arena == NULL) {
+    free(vec->data);
+    free(vec);
+  } else {
+    arena_dealloc(vec->arena, vec->data);
+    arena_dealloc(vec->arena, vec);
+  }
 }
 
 b8 vector_contains(vector *vec, const void *x) {
@@ -111,10 +143,8 @@ void vector_extend(vector *vec, vector *extra_vec) {
   assert(vec->elem_size == extra_vec->elem_size);
   u64 start_indx = vec->size;
   u64 new_size = start_indx + extra_vec->size;
-  while (vec->capacity < new_size) {
-    vec->capacity *= 2;
-    vec->data = realloc(vec->data, vec->capacity * vec->elem_size);
-  }
+  while (vec->capacity < new_size)
+    vector_grow(vec);
   memcpy((u8 *)vec->data + start_indx * vec->elem_size, (u8 *)extra_vec->data,
          extra_vec->size * vec->elem_size);
   vec->size = new_size;

@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef ARENA_IMPLEMENTATION
+#define ARENA_IMPLEMENTATION
+#endif
+
+#include "arena.h"
+
 #ifdef STRING_IMPLEMENTATION
 #include "string8.h"
 #endif
@@ -75,6 +81,7 @@ u64 wyhash(const u8 *input, u64 input_len, u64 seed);
 
 typedef struct {
   u64 key_size, value_size;
+  mem_arena *alloc;
 } hash_map_context;
 
 typedef b8 (*eq_fn)(const hash_map_context ctx, const void *, const void *);
@@ -117,7 +124,14 @@ void hm_deinit(hash_map *hm);
 
 #define AUTO_HASHMAP(K, V)                                                     \
   hm_init(BASE_HM_CAPACITY,                                                    \
-          (hash_map_context){.key_size = sizeof(K), .value_size = sizeof(V)},  \
+          (hash_map_context){                                                  \
+              .key_size = sizeof(K), .value_size = sizeof(V), .alloc = NULL},  \
+          wyhash_auto, bytes_eql);
+
+#define AUTO_HASHMAP_ARENA(a, K, V)                                            \
+  hm_init(BASE_HM_CAPACITY,                                                    \
+          (hash_map_context){                                                  \
+              .key_size = sizeof(K), .value_size = sizeof(V), .alloc = a},     \
           wyhash_auto, bytes_eql);
 
 #define HM_GET(T, hm, key) (*(T *)hm_get_value(hm, key))
@@ -130,7 +144,15 @@ u64 wyhash_string8(const hash_map_context ctx, const void *strkey);
 #define STRING_HASHMAP(V)                                                      \
   hm_init(BASE_HM_CAPACITY,                                                    \
           (hash_map_context){.key_size = sizeof(string8),                      \
-                             .value_size = sizeof(V)},                         \
+                             .value_size = sizeof(V),                          \
+                             .alloc = NULL},                                   \
+          wyhash_string8, string8_eql);
+
+#define STRING_HASHMAP_ARENA(a, V)                                             \
+  hm_init(BASE_HM_CAPACITY,                                                    \
+          (hash_map_context){.key_size = sizeof(string8),                      \
+                             .value_size = sizeof(V),                          \
+                             .alloc = a},                                      \
           wyhash_string8, string8_eql);
 
 #endif
@@ -248,17 +270,27 @@ static u64 ensure_pow2(u64 cap) {
 }
 
 hash_map *hm_init(u64 capacity, hash_map_context ctx, hash_fn hash, eq_fn eq) {
-  hash_map *hm = (hash_map *)malloc(sizeof(hash_map));
+  hash_map *hm;
+  if (ctx.alloc == NULL) {
+    hm = (hash_map *)malloc(sizeof(hash_map));
+  } else {
+    hm = ALLOC_STRUCT(ctx.alloc, hash_map);
+  }
   u64 cap = ensure_pow2(capacity);
   hm->capacity = cap;
   hm->size = 0;
   hm->ctx = ctx;
-  hm->keys = (u8 *)malloc(cap * ctx.key_size);
-  hm->values = (u8 *)malloc(cap * ctx.value_size);
+  if (ctx.alloc == NULL) {
+    hm->keys = (u8 *)malloc(cap * ctx.key_size);
+    hm->values = (u8 *)malloc(cap * ctx.value_size);
+    hm->fingerprint = (u8 *)malloc(cap);
+  } else {
+    hm->keys = (u8 *)arena_alloc(ctx.alloc, cap * ctx.key_size);
+    hm->values = (u8 *)arena_alloc(ctx.alloc, cap * ctx.value_size);
+    hm->fingerprint = (u8 *)arena_alloc(ctx.alloc, cap);
+  }
   hm->hash = hash;
   hm->eq = eq;
-  hm->fingerprint = (u8 *)malloc(
-      cap); // first bit 7 bits for the hash and 1 bit for used or not
   memset(hm->fingerprint, 0x00, cap);
   return hm;
 }
@@ -312,7 +344,11 @@ u8 *hm_get_value(hash_map *hm, const void *key) {
 
 u8 *hm_values(hash_map *hm) {
   u64 bytesize = hm->ctx.value_size;
-  u8 *values = malloc(hm->size * bytesize);
+  u8 *values;
+  if (hm->ctx.alloc == NULL)
+    values = malloc(hm->size * bytesize);
+  else
+    values = arena_alloc(hm->ctx.alloc, hm->size * bytesize);
   u64 cntr = 0;
   for (u64 i = 0; i < hm->capacity; ++i) {
     if (!ISUSED(hm, i))
@@ -349,13 +385,22 @@ void grow_if_needed(hash_map *hm) {
     hm_put_assume_capacity(map, key_ptr, value_ptr);
   }
   hm->capacity = new_cap;
-  free(hm->values);
-  free(hm->keys);
-  free(hm->fingerprint);
+  if (hm->ctx.alloc == NULL) {
+    free(hm->values);
+    free(hm->keys);
+    free(hm->fingerprint);
+  } else {
+    arena_dealloc(hm->ctx.alloc, hm->values);
+    arena_dealloc(hm->ctx.alloc, hm->keys);
+    arena_dealloc(hm->ctx.alloc, hm->fingerprint);
+  }
   hm->values = map->values;
   hm->keys = map->keys;
   hm->fingerprint = map->fingerprint;
-  free(map);
+  if (hm->ctx.alloc == NULL)
+    free(map);
+  else
+    arena_dealloc(hm->ctx.alloc, map);
 }
 
 kv_entry hm_get_or_put(hash_map *hm, const void *key) {
@@ -393,10 +438,17 @@ void hm_reset(hash_map *hm) {
 }
 
 void hm_deinit(hash_map *hm) {
-  free(hm->keys);
-  free(hm->values);
-  free(hm->fingerprint);
-  free(hm);
+  if (hm->ctx.alloc == NULL) {
+    free(hm->keys);
+    free(hm->values);
+    free(hm->fingerprint);
+    free(hm);
+  } else {
+    arena_dealloc(hm->ctx.alloc, hm->keys);
+    arena_dealloc(hm->ctx.alloc, hm->values);
+    arena_dealloc(hm->ctx.alloc, hm->fingerprint);
+    arena_dealloc(hm->ctx.alloc, hm);
+  }
 }
 
 kv_iterator hm_iterator(hash_map *hm) {

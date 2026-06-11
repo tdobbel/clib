@@ -9,7 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef ARENA_IMPLEMENTATION
 #define ARENA_IMPLEMENTATION
+#endif
 #include "arena.h"
 
 typedef uint64_t u64;
