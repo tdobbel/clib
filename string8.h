@@ -121,7 +121,8 @@ void str_read_file(mem_arena *arena, string8 *dst, const char *fname) {
   fseek(fp, 0, SEEK_END);
   u64 size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
-  dst->str = (u8 *)(arena == NULL ? malloc(size) : PUSH_ARRAY(arena, u8, size));
+  dst->str =
+      (u8 *)(arena == NULL ? malloc(size) : ALLOC_ARRAY(arena, u8, size));
   dst->size = size;
   u64 n_byte_read = fread(dst->str, 1, size, fp);
   if (n_byte_read != size) {
@@ -158,7 +159,7 @@ b8 str_split_once(string8 splitted[2], string8 input, string8 delim) {
 
 string8 str_dup(mem_arena *arena, string8 src) {
   u8 *str = (u8 *)(arena == NULL ? malloc(src.size)
-                                 : PUSH_ARRAY(arena, u8, src.size));
+                                 : ALLOC_ARRAY(arena, u8, src.size));
   memcpy(str, src.str, src.size);
   return (string8){.str = str, .size = src.size};
 }
@@ -188,7 +189,8 @@ void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
   for (u64 i = 0; i < n_elem; ++i) {
     size += elems[i].size;
   }
-  dst->str = (u8 *)(arena == NULL ? malloc(size) : PUSH_ARRAY(arena, u8, size));
+  dst->str =
+      (u8 *)(arena == NULL ? malloc(size) : ALLOC_ARRAY(arena, u8, size));
   dst->size = size;
   u64 iptr = 0;
   for (u64 i = 0; i < n_elem; ++i) {

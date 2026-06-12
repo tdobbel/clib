@@ -2,14 +2,17 @@
 #define ARENA_H
 
 #include <assert.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 typedef uint64_t u64;
+typedef int64_t i64;
 typedef uint32_t u32;
 typedef int32_t i32;
 typedef uint8_t u8;
@@ -46,6 +49,7 @@ b32 release_memory(void *ptr, u64 size);
 mem_region *new_region(u64 pos, u64 size);
 mem_arena *arena_create(u64 size);
 
+i64 get_file_size(char *file);
 void *arena_alloc(mem_arena *arena, u64 size);
 void arena_dealloc(mem_arena *arena, void *ptr);
 void *arena_realloc(mem_arena *arena, void *ptr, u64 new_size);
@@ -69,6 +73,21 @@ void arena_print_regions(mem_arena *arena);
   (T *)arena_realloc((arena), (ptr), sizeof(T) * (n))
 
 #ifdef ARENA_IMPLEMENTATION
+
+i64 get_file_size(char *file) {
+  int fd = open(file, O_RDONLY);
+  if (fd == -1) {
+    fprintf(stderr, "Could not read file\n");
+    return -1;
+  }
+  struct stat stat_buf;
+  if (fstat(fd, &stat_buf) == -1) {
+    fprintf(stderr, "Could not get file stats\n");
+    return -1;
+  }
+
+  return stat_buf.st_size;
+}
 
 void arena_print_regions(mem_arena *arena) {
   u64 i = 0;
@@ -152,10 +171,10 @@ void *arena_alloc(mem_arena *arena, u64 size) {
     }
   }
 
-  mem_region **v = (mem_region **)(arena + r->pos);
+  mem_region **v = (mem_region **)((u8 *)arena + r->pos);
   r->used = true;
   *v = r;
-  return (void *)(v + 1);
+  return (u8 *)(v + 1);
 }
 
 void *arena_realloc(mem_arena *arena, void *ptr, u64 new_size) {
