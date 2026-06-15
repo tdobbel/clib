@@ -75,19 +75,11 @@ void split(vector *vec, string8 base, string8 sep);
 
 vector *vector_create(mem_arena *arena, u64 elem_size) {
   vector *vec;
-  if (arena == NULL) {
-    vec = (vector *)malloc(sizeof(vector));
-  } else {
-    vec = ALLOC_STRUCT(arena, vector);
-  }
+  vec = (vector *)arena_alloc(arena, sizeof(vector));
   vec->size = 0;
   vec->elem_size = elem_size;
   vec->capacity = BASE_VEC_CAPACITY;
-  if (arena == NULL) {
-    vec->data = malloc(BASE_VEC_CAPACITY * elem_size);
-  } else {
-    vec->data = arena_alloc(arena, BASE_VEC_CAPACITY * elem_size);
-  }
+  vec->data = arena_alloc(arena, BASE_VEC_CAPACITY * elem_size);
   vec->arena = arena;
   return vec;
 }
@@ -99,12 +91,7 @@ void *vector_get(vector *vec, u64 index) {
 
 void vector_grow(vector *vec) {
   vec->capacity *= 2;
-  if (vec->arena == NULL) {
-    vec->data = realloc(vec->data, vec->capacity * vec->elem_size);
-  } else {
-    vec->data =
-        arena_realloc(vec->arena, vec->data, vec->capacity * vec->elem_size);
-  }
+  vec->data = arena_realloc(vec->arena, vec->data, vec->capacity * vec->elem_size);
 }
 
 void *vector_append_get(vector *vec) {
@@ -116,13 +103,8 @@ void *vector_append_get(vector *vec) {
 void vector_free(vector *vec) {
   if (!vec)
     return;
-  if (vec->arena == NULL) {
-    free(vec->data);
-    free(vec);
-  } else {
-    arena_dealloc(vec->arena, vec->data);
-    arena_dealloc(vec->arena, vec);
-  }
+  arena_dealloc(vec->arena, vec->data);
+  arena_dealloc(vec->arena, vec);
 }
 
 b8 vector_contains(vector *vec, const void *x) {

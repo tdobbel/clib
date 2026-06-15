@@ -140,6 +140,8 @@ b8 region_invalid(mem_region *r, u64 req_size) {
 }
 
 void *arena_alloc(mem_arena *arena, u64 size) {
+  if (arena == NULL)
+    return malloc(size);
   u64 total_size = size + META_SIZE;
   u64 pos_aligned = ALIGN_UP_POW2(arena->pos, ARENA_ALIGN);
 
@@ -178,6 +180,8 @@ void *arena_alloc(mem_arena *arena, u64 size) {
 }
 
 void *arena_realloc(mem_arena *arena, void *ptr, u64 new_size) {
+  if (arena == NULL)
+    return realloc(ptr, new_size);
   u64 old_size = BYTE_SIZE(ptr);
   u8 *new_ptr = (u8 *)arena_alloc(arena, new_size);
   u8 *data = (u8 *)ptr;
@@ -203,6 +207,10 @@ void arena_simplify_regions(mem_arena *arena) {
 }
 
 void arena_dealloc(mem_arena *arena, void *ptr) {
+  if (arena == NULL) {
+    free(ptr);
+    return;
+  }
   mem_region **rp = ((mem_region **)ptr) - 1;
   (*rp)->used = false;
   arena_simplify_regions(arena);

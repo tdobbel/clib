@@ -270,25 +270,14 @@ static u64 ensure_pow2(u64 cap) {
 }
 
 hash_map *hm_init(u64 capacity, hash_map_context ctx, hash_fn hash, eq_fn eq) {
-  hash_map *hm;
-  if (ctx.alloc == NULL) {
-    hm = (hash_map *)malloc(sizeof(hash_map));
-  } else {
-    hm = ALLOC_STRUCT(ctx.alloc, hash_map);
-  }
+  hash_map *hm = (hash_map *)arena_alloc(ctx.alloc, sizeof(hash_map));
   u64 cap = ensure_pow2(capacity);
   hm->capacity = cap;
   hm->size = 0;
   hm->ctx = ctx;
-  if (ctx.alloc == NULL) {
-    hm->keys = (u8 *)malloc(cap * ctx.key_size);
-    hm->values = (u8 *)malloc(cap * ctx.value_size);
-    hm->fingerprint = (u8 *)malloc(cap);
-  } else {
-    hm->keys = (u8 *)arena_alloc(ctx.alloc, cap * ctx.key_size);
-    hm->values = (u8 *)arena_alloc(ctx.alloc, cap * ctx.value_size);
-    hm->fingerprint = (u8 *)arena_alloc(ctx.alloc, cap);
-  }
+  hm->keys = (u8 *)arena_alloc(ctx.alloc, cap * ctx.key_size);
+  hm->values = (u8 *)arena_alloc(ctx.alloc, cap * ctx.value_size);
+  hm->fingerprint = (u8 *)arena_alloc(ctx.alloc, cap);
   hm->hash = hash;
   hm->eq = eq;
   memset(hm->fingerprint, 0x00, cap);
@@ -344,11 +333,7 @@ u8 *hm_get_value(hash_map *hm, const void *key) {
 
 u8 *hm_values(hash_map *hm) {
   u64 bytesize = hm->ctx.value_size;
-  u8 *values;
-  if (hm->ctx.alloc == NULL)
-    values = malloc(hm->size * bytesize);
-  else
-    values = arena_alloc(hm->ctx.alloc, hm->size * bytesize);
+  u8 *values = (u8 *)arena_alloc(hm->ctx.alloc, hm->size * bytesize);
   u64 cntr = 0;
   for (u64 i = 0; i < hm->capacity; ++i) {
     if (!ISUSED(hm, i))
@@ -385,22 +370,13 @@ void grow_if_needed(hash_map *hm) {
     hm_put_assume_capacity(map, key_ptr, value_ptr);
   }
   hm->capacity = new_cap;
-  if (hm->ctx.alloc == NULL) {
-    free(hm->values);
-    free(hm->keys);
-    free(hm->fingerprint);
-  } else {
-    arena_dealloc(hm->ctx.alloc, hm->values);
-    arena_dealloc(hm->ctx.alloc, hm->keys);
-    arena_dealloc(hm->ctx.alloc, hm->fingerprint);
-  }
+  arena_dealloc(hm->ctx.alloc, hm->values);
+  arena_dealloc(hm->ctx.alloc, hm->keys);
+  arena_dealloc(hm->ctx.alloc, hm->fingerprint);
   hm->values = map->values;
   hm->keys = map->keys;
   hm->fingerprint = map->fingerprint;
-  if (hm->ctx.alloc == NULL)
-    free(map);
-  else
-    arena_dealloc(hm->ctx.alloc, map);
+  arena_dealloc(hm->ctx.alloc, map);
 }
 
 kv_entry hm_get_or_put(hash_map *hm, const void *key) {
@@ -438,17 +414,10 @@ void hm_reset(hash_map *hm) {
 }
 
 void hm_deinit(hash_map *hm) {
-  if (hm->ctx.alloc == NULL) {
-    free(hm->keys);
-    free(hm->values);
-    free(hm->fingerprint);
-    free(hm);
-  } else {
-    arena_dealloc(hm->ctx.alloc, hm->keys);
-    arena_dealloc(hm->ctx.alloc, hm->values);
-    arena_dealloc(hm->ctx.alloc, hm->fingerprint);
-    arena_dealloc(hm->ctx.alloc, hm);
-  }
+  arena_dealloc(hm->ctx.alloc, hm->keys);
+  arena_dealloc(hm->ctx.alloc, hm->values);
+  arena_dealloc(hm->ctx.alloc, hm->fingerprint);
+  arena_dealloc(hm->ctx.alloc, hm);
 }
 
 kv_iterator hm_iterator(hash_map *hm) {
