@@ -32,6 +32,7 @@ void vector_free(vector *vec);
 void *vector_get(vector *vec, u64 index);
 void vector_grow(vector *vec);
 void *vector_append_get(vector *vec);
+void vector_remove(vector *vec, u64 index);
 b8 vector_contains(vector *vec, const void *x);
 void vector_extend(vector *vec, vector *extra_vec);
 
@@ -47,6 +48,7 @@ void split(vector *vec, string8 base, string8 sep);
 #define VEC_CREATE(T) vector_create(NULL, sizeof(T))
 #define VEC_ARENA_CREATE(a, T) vector_create(a, sizeof(T))
 #define VEC_PUSH(vec, T, x) (*(T *)vector_append_get((vec)) = (x))
+#define VEC_GET(vec, T, i) *(T *)vector_get(vec, i)
 
 #define HVEC_LEN(vec) ((vec_meta *)(vec) - 1)->size
 
@@ -86,18 +88,30 @@ vector *vector_create(mem_arena *arena, u64 elem_size) {
 
 void *vector_get(vector *vec, u64 index) {
   assert(vec && index < vec->size);
-  return (void *)((char *)vec->data + index * vec->elem_size);
+  return (void *)((u8 *)vec->data + index * vec->elem_size);
 }
 
 void vector_grow(vector *vec) {
   vec->capacity *= 2;
-  vec->data = arena_realloc(vec->arena, vec->data, vec->capacity * vec->elem_size);
+  vec->data =
+      arena_realloc(vec->arena, vec->data, vec->capacity * vec->elem_size);
 }
 
 void *vector_append_get(vector *vec) {
   if (vec->size == vec->capacity)
     vector_grow(vec);
   return vector_get(vec, vec->size++);
+}
+
+void vector_remove(vector *vec, u64 index) {
+  assert(index < vec->size);
+  u64 i = index * vec->elem_size;
+  u64 j = i + vec->elem_size;
+  u8 *data = (u8 *)vec->data;
+  for (u64 k = 0; j + k < vec->size * vec->elem_size; ++k) {
+    data[i + k] = data[j + k];
+  }
+  vec->size--;
 }
 
 void vector_free(vector *vec) {
