@@ -16,7 +16,7 @@
 typedef double f64;
 typedef uint32_t u32;
 typedef uint64_t u64;
-typedef u32 b32;
+typedef int32_t b32;
 typedef struct cell_struct cell;
 
 typedef struct {
