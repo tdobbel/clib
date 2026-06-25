@@ -6,12 +6,20 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef VECTOR_IMPLEMENTATION
+#define VECTOR_IMPLEMENTATION
+#endif
+
+#include "vector.h"
+
 #ifndef DIM
 #define DIM 2
 #endif
 #define NSUB (1 << DIM)
 
+#ifndef MAXP
 #define MAXP 200
+#endif
 
 typedef double f64;
 typedef uint32_t u32;
@@ -31,6 +39,11 @@ struct cell_struct {
   leaf_data *leaf;
   cell *sub;
 };
+
+typedef struct {
+  u64 index;
+  f64 distance;
+} kdt_pair;
 
 typedef struct {
   u64 size;
@@ -53,40 +66,28 @@ static b32 within_radius(cell *c, const f64 *x, f64 r) {
   return true;
 }
 
-static void add_point(u64 id, f64 d, u64 *n, u64 *nalloc, u64 **ids_ptr,
-                      f64 **dist_ptr) {
-  if (*n == *nalloc) {
-    (*nalloc) *= 2;
-    *ids_ptr = (u64 *)realloc(*ids_ptr, *nalloc * sizeof(u64));
-    *dist_ptr = (f64 *)realloc(*dist_ptr, *nalloc * sizeof(f64));
-  }
-  u64 *ids = *ids_ptr;
-  f64 *dist = *dist_ptr;
-  u64 i;
-  for (i = 0; i < *n && dist[i] < d; ++i)
-    ;
-  for (u64 j = *n; j > i; --j) {
-    ids[j] = ids[j - 1];
-    dist[j] = dist[j - 1];
-  }
-  ids[i] = id;
-  dist[i] = d;
-  *n += 1;
+static int compare_pairs(const void *a, const void *b) {
+  f64 da = ((kdt_pair *)a)->distance;
+  f64 db = ((kdt_pair *)b)->distance;
+  if (da < db)
+    return -1;
+  if (da > db)
+    return 1;
+  return 0;
 }
 
 void cell_init(cell *c, const f64 *xmin, const f64 *xmax);
 b32 cell_add(cell *c, u64 id, const f64 *x);
 void cell_free(cell *c);
 void cell_split(cell *tree);
-void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
-                        u64 **ids, f64 **distances);
+void cell_search_radius(cell *c, const f64 *xp, f64 radius, vector *result);
 
 kdtree tree_create(const f64 *xmin, const f64 *xmax);
 void tree_free(kdtree *tree);
 b32 tree_add(kdtree *tree, const f64 *x);
-void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
-                   u64 **ids, f64 **distances);
+void search_radius(kdtree *tree, const f64 *xp, f64 radius, vector *result);
 kdtree tree_from_points(u64 n, const f64 *x, f64 buffer);
+
 
 #ifdef KDTREE_IMPLEMENTATION
 
@@ -180,32 +181,28 @@ void cell_free(cell *c) {
   }
 }
 
-void search_radius(kdtree *tree, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
-                   u64 **ids, f64 **distances) {
-  *n = 0;
-  if (*nalloc == 0) {
-    *nalloc = 512;
-    *ids = (u64 *)malloc(sizeof(u64) * (*nalloc));
-    *distances = (f64 *)malloc(sizeof(f64) * (*nalloc));
-  }
-  cell_search_radius(tree->root, xp, radius, n, nalloc, ids, distances);
+void search_radius(kdtree *tree, const f64 *xp, f64 radius, vector *result) {
+  result->size = 0;
+  cell_search_radius(tree->root, xp, radius, result);
+  vector_sort(result, compare_pairs);
 }
 
-void cell_search_radius(cell *c, const f64 *xp, f64 radius, u64 *n, u64 *nalloc,
-                        u64 **ids, f64 **distances) {
+void cell_search_radius(cell *c, const f64 *xp, f64 radius, vector *result) {
   if (!within_radius(c, xp, radius)) {
     return;
   }
   if (c->leaf) {
     for (u32 i = 0; i < c->leaf->n; ++i) {
       f64 d = compute_distance(xp, c->leaf->x[i]);
-      if (d < radius)
-        add_point(c->leaf->id[i], d, n, nalloc, ids, distances);
+      if (d < radius) {
+        kdt_pair pair = (kdt_pair){.index = c->leaf->id[i], .distance = d};
+        VEC_PUSH(result, kdt_pair, pair);
+      }
     }
   }
   if (c->sub) {
     for (u32 i = 0; i < NSUB; ++i) {
-      cell_search_radius(&c->sub[i], xp, radius, n, nalloc, ids, distances);
+      cell_search_radius(&c->sub[i], xp, radius, result);
     }
   }
 }

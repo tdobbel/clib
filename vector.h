@@ -35,6 +35,7 @@ void *vector_append_get(vector *vec);
 void vector_remove(vector *vec, u64 index);
 b8 vector_contains(vector *vec, const void *x);
 void vector_extend(vector *vec, vector *extra_vec);
+void vector_sort(vector *vec, __compar_fn_t cmp_fn);
 
 #ifdef STRING_IMPLEMENTATION
 void split_whitespace(vector *vec, string8 s);
@@ -144,6 +145,10 @@ void vector_extend(vector *vec, vector *extra_vec) {
   memcpy((u8 *)vec->data + start_indx * vec->elem_size, (u8 *)extra_vec->data,
          extra_vec->size * vec->elem_size);
   vec->size = new_size;
+}
+
+void vector_sort(vector *vec, __compar_fn_t cmp_fn) {
+  qsort(vec->data, vec->size, vec->elem_size, cmp_fn);
 }
 
 #ifdef STRING_IMPLEMENTATION
