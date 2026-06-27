@@ -30,6 +30,7 @@ typedef struct {
 vector *vector_create(mem_arena *arena, u64 elem_size);
 void vector_free(vector *vec);
 void *vector_get(vector *vec, u64 index);
+void *vector_get_last(vector *vec);
 void *vector_pop(vector *vec);
 void vector_grow(vector *vec);
 void *vector_append_get(vector *vec);
@@ -91,6 +92,12 @@ vector *vector_create(mem_arena *arena, u64 elem_size) {
 void *vector_get(vector *vec, u64 index) {
   assert(vec && index < vec->size);
   return (void *)((u8 *)vec->data + index * vec->elem_size);
+}
+
+void *vector_get_last(vector *vec) {
+  if (vec->size == 0)
+    return NULL;
+  return vector_get(vec, vec->size - 1);
 }
 
 void *vector_pop(vector *vec) {
