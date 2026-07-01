@@ -114,10 +114,11 @@ u64 hm_get_index(hash_map *hm, const void *key);
 kv_entry hm_get_entry(hash_map *hm, const void *key);
 u8 *hm_get_value(hash_map *hm, const void *key);
 u8 *hm_values(hash_map *hm);
+u8 *hm_keys(hash_map *hm);
 kv_entry hm_get_or_put(hash_map *hm, const void *key);
 void grow_if_needed(hash_map *hm);
 void hm_put(hash_map *hm, const void *key, const void *value);
-void hm_remove(hash_map *hm, const void *key);
+// void hm_remove(hash_map *hm, const void *key);
 void hm_reset(hash_map *hm);
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value);
 void hm_deinit(hash_map *hm);
@@ -344,6 +345,19 @@ u8 *hm_values(hash_map *hm) {
   return values;
 }
 
+u8 *hm_keys(hash_map *hm) {
+  u64 bytesize = hm->ctx.key_size;
+  u8 *keys = (u8 *)arena_alloc(hm->ctx.alloc, hm->size * bytesize);
+  u64 cntr = 0;
+  for (u64 i = 0; i < hm->capacity; ++i) {
+    if (!ISUSED(hm, i))
+      continue;
+    memcpy(keys + cntr * bytesize, hm->keys + i * bytesize, bytesize);
+    cntr++;
+  }
+  return keys;
+}
+
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value) {
   u64 indx = hm_get_index(hm, key);
   u8 *value_ptr = hm->values + indx * hm->ctx.value_size;
@@ -400,13 +414,13 @@ void hm_put(hash_map *hm, const void *key, const void *value) {
   memcpy(entry.value_ptr, value, hm->ctx.value_size);
 }
 
-void hm_remove(hash_map *hm, const void *key) {
-  u64 index = hm_get_index(hm, key);
-  if (!ISUSED(hm, index))
-    return;
-  hm->fingerprint[index] &= 0xfe;
-  hm->size--;
-}
+// void hm_remove(hash_map *hm, const void *key) {
+//   u64 index = hm_get_index(hm, key);
+//   if (!ISUSED(hm, index))
+//     return;
+//   hm->fingerprint[index] &= 0xfe;
+//   hm->size--;
+// }
 
 void hm_reset(hash_map *hm) {
   memset(hm->fingerprint, 0, hm->capacity);
