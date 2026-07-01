@@ -199,10 +199,8 @@ void split(vector *vec, string8 base, string8 sep) {
       continue;
     }
     // test matched sep
-    if (end > start) {
-      string8 part = (string8){.str = base.str + start, .size = end - start};
-      VEC_PUSH(vec, string8, part);
-    }
+    string8 part = (string8){.str = base.str + start, .size = end - start};
+    VEC_PUSH(vec, string8, part);
     start = end + sep.size;
     end = start;
   }
