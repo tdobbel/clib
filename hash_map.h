@@ -117,7 +117,7 @@ u8 *hm_keys(hash_map *hm);
 kv_entry hm_get_or_put(hash_map *hm, const void *key);
 void grow_if_needed(hash_map *hm);
 void hm_put(hash_map *hm, const void *key, const void *value);
-// void hm_remove(hash_map *hm, const void *key);
+void hm_remove(hash_map *hm, const void *key);
 void hm_reset(hash_map *hm);
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value);
 void hm_deinit(hash_map *hm);
