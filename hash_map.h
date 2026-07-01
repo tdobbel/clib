@@ -3,7 +3,6 @@
 
 #include <assert.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #ifndef ARENA_IMPLEMENTATION
@@ -260,7 +259,17 @@ u64 wyhash_auto(const hash_map_context ctx, const void *key) {
   return wyhash((u8 *)key, ctx.key_size, SEED);
 }
 
-#define ISUSED(hm, indx) ((hm)->fingerprint[indx] & 0x01)
+static inline b8 is_free(hash_map *hm, u64 indx) {
+  return hm->fingerprint[indx] == 0x00;
+}
+
+static inline b8 is_tombstone(hash_map *hm, u64 indx) {
+  return hm->fingerprint[indx] == 0x02;
+}
+
+static inline b8 is_used(hash_map *hm, u64 indx) {
+  return hm->fingerprint[indx] & 0x01;
+}
 
 static u64 ensure_pow2(u64 cap) {
   u64 k = 1;
@@ -301,15 +310,21 @@ u64 hm_get_index(hash_map *hm, const void *key) {
   u64 limit = hm->capacity;
   u8 fingerprint = hash >> 57;
   u64 ksz = hm->ctx.key_size;
-  while (ISUSED(hm, indx) && limit > 0) {
+  u64 first_tombstone_indx = hm->capacity;
+  while (!is_free(hm, indx) && limit > 0) {
     u8 fp = hm->fingerprint[indx] >> 1;
-    if (fp == fingerprint) {
+    if (is_used(hm, indx) && fp == fingerprint) {
       const u8 *test_key = hm->keys + indx * ksz;
       if (hm->eq(hm->ctx, test_key, key))
         return indx;
+    } else if (first_tombstone_indx == hm->capacity && is_tombstone(hm, indx)) {
+      first_tombstone_indx = indx;
     }
     indx = (indx + 1) & (hm->capacity - 1);
     limit--;
+  }
+  if (first_tombstone_indx < hm->capacity) {
+    indx = first_tombstone_indx;
   }
   assert(limit > 0);
   hm->fingerprint[indx] = fingerprint << 1;
@@ -318,7 +333,7 @@ u64 hm_get_index(hash_map *hm, const void *key) {
 
 kv_entry hm_get_entry(hash_map *hm, const void *key) {
   u64 indx = hm_get_index(hm, key);
-  if (!ISUSED(hm, indx))
+  if (!is_used(hm, indx))
     return (kv_entry){.found_existing = 0, .key_ptr = NULL, .value_ptr = NULL};
   u8 *key_ptr = hm->keys + indx * hm->ctx.key_size;
   u8 *value_ptr = hm->values + indx * hm->ctx.value_size;
@@ -337,7 +352,7 @@ u8 *hm_values(hash_map *hm) {
   u8 *values = (u8 *)arena_alloc(hm->ctx.alloc, hm->size * bytesize);
   u64 cntr = 0;
   for (u64 i = 0; i < hm->capacity; ++i) {
-    if (!ISUSED(hm, i))
+    if (!is_used(hm, i))
       continue;
     memcpy(values + cntr * bytesize, hm->values + i * bytesize, bytesize);
     cntr++;
@@ -350,7 +365,7 @@ u8 *hm_keys(hash_map *hm) {
   u8 *keys = (u8 *)arena_alloc(hm->ctx.alloc, hm->size * bytesize);
   u64 cntr = 0;
   for (u64 i = 0; i < hm->capacity; ++i) {
-    if (!ISUSED(hm, i))
+    if (!is_used(hm, i))
       continue;
     memcpy(keys + cntr * bytesize, hm->keys + i * bytesize, bytesize);
     cntr++;
@@ -362,7 +377,7 @@ void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value) {
   u64 indx = hm_get_index(hm, key);
   u8 *value_ptr = hm->values + indx * hm->ctx.value_size;
   memcpy(value_ptr, value, hm->ctx.value_size);
-  if (!ISUSED(hm, indx)) {
+  if (!is_used(hm, indx)) {
     u8 *key_ptr = hm->keys + indx * hm->ctx.key_size;
     memcpy(key_ptr, key, hm->ctx.key_size);
     hm->fingerprint[indx] |= 0x01;
@@ -377,7 +392,7 @@ void grow_if_needed(hash_map *hm) {
   u64 new_cap = hm->capacity * 2;
   hash_map *map = hm_init(new_cap, hm->ctx, hm->hash, hm->eq);
   for (u64 i = 0; i < hm->capacity; ++i) {
-    if (!ISUSED(hm, i))
+    if (!is_used(hm, i))
       continue;
     u8 *key_ptr = hm->keys + i * hm->ctx.key_size;
     u8 *value_ptr = hm->values + i * hm->ctx.value_size;
@@ -398,7 +413,7 @@ kv_entry hm_get_or_put(hash_map *hm, const void *key) {
   u64 indx = hm_get_index(hm, key);
   u8 *value_ptr = hm->values + hm->ctx.value_size * indx;
   u8 *key_ptr = hm->keys + hm->ctx.key_size * indx;
-  if (ISUSED(hm, indx)) {
+  if (is_used(hm, indx)) {
     return (kv_entry){
         .found_existing = 1, .value_ptr = value_ptr, .key_ptr = key_ptr};
   }
@@ -414,13 +429,13 @@ void hm_put(hash_map *hm, const void *key, const void *value) {
   memcpy(entry.value_ptr, value, hm->ctx.value_size);
 }
 
-// void hm_remove(hash_map *hm, const void *key) {
-//   u64 index = hm_get_index(hm, key);
-//   if (!ISUSED(hm, index))
-//     return;
-//   hm->fingerprint[index] &= 0xfe;
-//   hm->size--;
-// }
+void hm_remove(hash_map *hm, const void *key) {
+  u64 index = hm_get_index(hm, key);
+  if (!is_used(hm, index))
+    return;
+  hm->fingerprint[index] = 0x02;
+  hm->size--;
+}
 
 void hm_reset(hash_map *hm) {
   memset(hm->fingerprint, 0, hm->capacity);
@@ -447,7 +462,7 @@ b8 get_next(kv_iterator *kvi) {
     return 0;
   if (kvi->cntr < kvi->hm->size)
     kvi->indx++;
-  while (!ISUSED(kvi->hm, kvi->indx)) {
+  while (!is_used(kvi->hm, kvi->indx)) {
     kvi->indx++;
   }
   kvi->cntr--;
