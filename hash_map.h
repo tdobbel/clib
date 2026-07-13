@@ -110,7 +110,9 @@ static u64 ensure_pow2(u64 cap);
 
 hash_map *hm_init(u64 capacity, hash_map_context ctx, hash_fn hash, eq_fn eq);
 u64 hm_get_index(hash_map *hm, const void *key);
+u64 hm_get_or_put_index(hash_map *hm, const void *key);
 kv_entry hm_get_entry(hash_map *hm, const void *key);
+b8 hm_contains_key(hash_map *hm, const void *key);
 u8 *hm_get_value(hash_map *hm, const void *key);
 u8 *hm_values(hash_map *hm);
 u8 *hm_keys(hash_map *hm);
@@ -310,6 +312,25 @@ u64 hm_get_index(hash_map *hm, const void *key) {
   u64 limit = hm->capacity;
   u8 fingerprint = hash >> 57;
   u64 ksz = hm->ctx.key_size;
+  while (!is_free(hm, indx) && limit > 0) {
+    u8 fp = hm->fingerprint[indx] >> 1;
+    if (is_used(hm, indx) && fp == fingerprint) {
+      const u8 *test_key = hm->keys + indx * ksz;
+      if (hm->eq(hm->ctx, test_key, key))
+        return indx;
+    }
+    indx = (indx + 1) & (hm->capacity - 1);
+    limit--;
+  }
+  return hm->capacity;
+}
+
+u64 hm_get_or_put_index(hash_map *hm, const void *key) {
+  u64 hash = hm->hash(hm->ctx, key);
+  u64 indx = hash & (hm->capacity - 1);
+  u64 limit = hm->capacity;
+  u8 fingerprint = hash >> 57;
+  u64 ksz = hm->ctx.key_size;
   u64 first_tombstone_indx = hm->capacity;
   while (!is_free(hm, indx) && limit > 0) {
     u8 fp = hm->fingerprint[indx] >> 1;
@@ -333,12 +354,17 @@ u64 hm_get_index(hash_map *hm, const void *key) {
 
 kv_entry hm_get_entry(hash_map *hm, const void *key) {
   u64 indx = hm_get_index(hm, key);
-  if (!is_used(hm, indx))
+  if (indx == hm->capacity)
     return (kv_entry){.found_existing = 0, .key_ptr = NULL, .value_ptr = NULL};
   u8 *key_ptr = hm->keys + indx * hm->ctx.key_size;
   u8 *value_ptr = hm->values + indx * hm->ctx.value_size;
   return (kv_entry){
       .found_existing = 1, .key_ptr = key_ptr, .value_ptr = value_ptr};
+}
+
+b8 hm_contains_key(hash_map *hm, const void *key) {
+  kv_entry entry = hm_get_entry(hm, key);
+  return entry.found_existing;
 }
 
 u8 *hm_get_value(hash_map *hm, const void *key) {
@@ -374,7 +400,7 @@ u8 *hm_keys(hash_map *hm) {
 }
 
 void hm_put_assume_capacity(hash_map *hm, const void *key, const void *value) {
-  u64 indx = hm_get_index(hm, key);
+  u64 indx = hm_get_or_put_index(hm, key);
   u8 *value_ptr = hm->values + indx * hm->ctx.value_size;
   memcpy(value_ptr, value, hm->ctx.value_size);
   if (!is_used(hm, indx)) {
@@ -410,7 +436,7 @@ void grow_if_needed(hash_map *hm) {
 
 kv_entry hm_get_or_put(hash_map *hm, const void *key) {
   grow_if_needed(hm);
-  u64 indx = hm_get_index(hm, key);
+  u64 indx = hm_get_or_put_index(hm, key);
   u8 *value_ptr = hm->values + hm->ctx.value_size * indx;
   u8 *key_ptr = hm->keys + hm->ctx.key_size * indx;
   if (is_used(hm, indx)) {
