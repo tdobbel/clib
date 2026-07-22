@@ -27,16 +27,24 @@ typedef struct {
   mem_arena *arena;
 } vector;
 
+typedef b8 (*__vec_eq_fn_t)(const void *, const void *);
+
 vector *vector_create(mem_arena *arena, u64 elem_size);
 void vector_free(vector *vec);
+
 void *vector_get(vector *vec, u64 index);
 void *vector_get_last(vector *vec);
-void *vector_pop(vector *vec);
+
 void vector_grow(vector *vec);
-void *vector_append_get(vector *vec);
-void vector_remove(vector *vec, u64 index);
-b8 vector_contains(vector *vec, const void *x);
 void vector_extend(vector *vec, vector *extra_vec);
+void *vector_append_get(vector *vec);
+
+void vector_remove(vector *vec, u64 index);
+void *vector_pop(vector *vec);
+
+u64 vector_get_index(vector *vec, const void *needle, __vec_eq_fn_t eq);
+b8 vector_contains(vector *vec, const void *needle, __vec_eq_fn_t eq);
+
 void vector_sort(vector *vec, __compar_fn_t cmp_fn);
 
 #ifdef STRING_IMPLEMENTATION
@@ -137,20 +145,6 @@ void vector_free(vector *vec) {
   arena_dealloc(vec->arena, vec);
 }
 
-b8 vector_contains(vector *vec, const void *x) {
-  u8 *needle = (u8 *)x;
-  for (u64 i = 0; i < vec->size; ++i) {
-    u8 *elem = (u8 *)vec->data + i * vec->elem_size;
-    u64 j;
-    for (j = 0; j < vec->elem_size && elem[j] == needle[j]; ++j) {
-      ;
-    }
-    if (j == vec->elem_size)
-      return true;
-  }
-  return false;
-}
-
 void vector_extend(vector *vec, vector *extra_vec) {
   assert(vec->elem_size == extra_vec->elem_size);
   u64 start_indx = vec->size;
@@ -160,6 +154,19 @@ void vector_extend(vector *vec, vector *extra_vec) {
   memcpy((u8 *)vec->data + start_indx * vec->elem_size, (u8 *)extra_vec->data,
          extra_vec->size * vec->elem_size);
   vec->size = new_size;
+}
+
+u64 vector_get_index(vector *vec, const void *needle, __vec_eq_fn_t eq) {
+  for (u64 i = 0; i < vec->size; ++i) {
+    u8 *vp = vec->data + i * vec->elem_size;
+    if (eq(vp, needle))
+      return i;
+  }
+  return vec->size;
+}
+
+b8 vector_contains(vector *vec, const void *needle, __vec_eq_fn_t eq) {
+  return vector_get_index(vec, needle, eq) < vec->size;
 }
 
 void vector_sort(vector *vec, __compar_fn_t cmp_fn) {
