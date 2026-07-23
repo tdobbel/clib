@@ -158,7 +158,7 @@ void vector_extend(vector *vec, vector *extra_vec) {
 
 u64 vector_get_index(vector *vec, const void *needle, __vec_eq_fn_t eq) {
   for (u64 i = 0; i < vec->size; ++i) {
-    u8 *vp = vec->data + i * vec->elem_size;
+    u8 *vp = (u8 *)vec->data + i * vec->elem_size;
     if (eq(vp, needle))
       return i;
   }
