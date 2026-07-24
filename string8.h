@@ -50,7 +50,7 @@ b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
               const string8 *elems);
 
-b8 str_parse_unsigned(u64 *v, string8 s);
+u64 str_parse_unsigned(const string8 s);
 f64 str_parse_float(const string8 s);
 
 #ifdef STRING_IMPLEMENTATION
@@ -200,15 +200,20 @@ void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
   }
 }
 
-b8 str_parse_unsigned(u64 *v, const string8 s) {
-  *v = 0;
-  for (u64 i = 0; i < s.size; ++i) {
-    if (s.str[i] < '0' || s.str[i] > '9')
-      return false;
-    *v *= 10;
-    *v += (u64)(s.str[i] - '0');
+u64 str_parse_unsigned(const string8 s) {
+  string8 trimmed = str_trim(s);
+  if (trimmed.size > 20) {
+    fprintf(stderr, "Number has more digits than largest unsigned long int");
+    exit(1);
   }
-  return true;
+  if (trimmed.str[0] == '-') {
+    fprintf(stderr, "Negative number");
+    exit(1);
+  }
+  char input[21];
+  memcpy(input, s.str, s.size);
+  input[s.size] = '\0';
+  return strtoul(input, NULL, 10);
 }
 
 f64 str_parse_float(const string8 s) {
