@@ -48,8 +48,8 @@ b8 vector_contains(vector *vec, const void *needle, __vec_eq_fn_t eq);
 void vector_sort(vector *vec, __compar_fn_t cmp_fn);
 
 #ifdef STRING_IMPLEMENTATION
-void split_whitespace(vector *vec, string8 s);
-void split(vector *vec, string8 base, string8 sep);
+void str_split_whitespace(vector *vec, string8 s);
+void str_split(vector *vec, string8 base, string8 sep);
 #endif
 
 #ifndef BASE_VEC_CAPACITY
@@ -175,7 +175,7 @@ void vector_sort(vector *vec, __compar_fn_t cmp_fn) {
 
 #ifdef STRING_IMPLEMENTATION
 
-void split_whitespace(vector *vec, string8 s) {
+void str_split_whitespace(vector *vec, string8 s) {
   vec->size = 0;
   string8 s2 = str_trim(s);
   while (s2.size > 0) {
@@ -191,7 +191,7 @@ void split_whitespace(vector *vec, string8 s) {
   }
 }
 
-void split(vector *vec, string8 base, string8 sep) {
+void str_split(vector *vec, string8 base, string8 sep) {
   vec->size = 0;
   u64 start = 0;
   u64 end = start;
