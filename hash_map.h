@@ -51,29 +51,29 @@ typedef struct {
   u64 total_len;
 } Wyhash;
 
-static inline void mum(u64 *a, u64 *b) {
+static inline void _wy_mum(u64 *a, u64 *b) {
   u128 r = *a;
   r *= *b;
   *a = (u64)r;
   *b = (u64)(r >> 64);
 }
 
-static inline u64 mix(u64 a_, u64 b_) {
+static inline u64 _wy_mix(u64 a_, u64 b_) {
   u64 a = a_;
   u64 b = b_;
-  mum(&a, &b);
+  _wy_mum(&a, &b);
   return a ^ b;
 }
 
-static inline void wy_round(Wyhash *self, const u8 *input);
-static inline void wyhash_small_key(Wyhash *self, const u8 *input,
+static inline void _wy_round(Wyhash *self, const u8 *input);
+static inline void _wyhash_small_key(Wyhash *self, const u8 *input,
                                     u64 input_len);
-static inline void final0(Wyhash *self) {
+static inline void _wy_final0(Wyhash *self) {
   self->state[0] ^= self->state[1] ^ self->state[2];
 }
-static inline void final1(Wyhash *self, const u8 *input_lb, u64 input_len,
+static inline void _wy_final1(Wyhash *self, const u8 *input_lb, u64 input_len,
                           u64 start_pos);
-static inline u64 final2(Wyhash *self);
+static inline u64 _wy_final2(Wyhash *self);
 
 Wyhash wyhash_init(u64 seed);
 u64 wyhash(const u8 *input, u64 input_len, u64 seed);
@@ -99,7 +99,7 @@ typedef struct {
   hash_map_context ctx;
   u8 *keys;
   u8 *values;
-  u8 *fingerprint; // bit 1: 0 if free, 1 if used, 7 other bits -> hash
+  u8 *fingerprint; // free: 0x00, tombstone: 0x02, used: first bit is 1
   hash_fn hash;
   eq_fn eq;
 } hash_map;
@@ -179,23 +179,23 @@ b8 string8_eql(const hash_map_context ctx, const void *a, const void *b);
 
 #ifdef HASHMAP_IMPLEMENTATION
 
-static inline void wy_round(Wyhash *self, const u8 *input) {
+static inline void _wy_round(Wyhash *self, const u8 *input) {
   for (u64 i = 0; i < 3; ++i) {
     u64 a = *(u64 *)(input + 8 * (2 * i));
     u64 b = *(u64 *)(input + 8 * (2 * i + 1));
-    self->state[i] = mix(a ^ secret[i + 1], b ^ self->state[i]);
+    self->state[i] = _wy_mix(a ^ secret[i + 1], b ^ self->state[i]);
   }
 }
 
 Wyhash wyhash_init(u64 seed) {
   Wyhash self = (Wyhash){.total_len = 0};
-  self.state[0] = seed ^ mix(seed ^ secret[0], secret[1]);
+  self.state[0] = seed ^ _wy_mix(seed ^ secret[0], secret[1]);
   self.state[1] = self.state[0];
   self.state[2] = self.state[0];
   return self;
 }
 
-static inline void wyhash_small_key(Wyhash *self, const u8 *input,
+static inline void _wyhash_small_key(Wyhash *self, const u8 *input,
                                     u64 input_len) {
   assert(input_len <= 16);
   if (input_len >= 4) {
@@ -213,7 +213,7 @@ static inline void wyhash_small_key(Wyhash *self, const u8 *input,
   }
 }
 
-static inline void final1(Wyhash *self, const u8 *input_lb, u64 input_len,
+static inline void _wy_final1(Wyhash *self, const u8 *input_lb, u64 input_len,
                           u64 start_pos) {
   assert(input_len >= 16);
   assert(input_len - start_pos <= 48);
@@ -222,7 +222,7 @@ static inline void final1(Wyhash *self, const u8 *input_lb, u64 input_len,
 
   u64 i = 0;
   while (i + 16 < len) {
-    self->state[0] = mix((*(u64 *)(input + i)) ^ secret[1],
+    self->state[0] = _wy_mix((*(u64 *)(input + i)) ^ secret[1],
                          (*(u64 *)(input + i + 8)) ^ self->state[0]);
     i += 16;
   }
@@ -230,31 +230,31 @@ static inline void final1(Wyhash *self, const u8 *input_lb, u64 input_len,
   self->b = *(u64 *)(input_lb + input_len - 8);
 }
 
-static inline u64 final2(Wyhash *self) {
+static inline u64 _wy_final2(Wyhash *self) {
   self->a ^= secret[1];
   self->b ^= self->state[0];
-  mum(&self->a, &self->b);
-  return mix(self->a ^ secret[0] ^ self->total_len, self->b ^ secret[1]);
+  _wy_mum(&self->a, &self->b);
+  return _wy_mix(self->a ^ secret[0] ^ self->total_len, self->b ^ secret[1]);
 }
 
 u64 wyhash(const u8 *input, u64 input_len, u64 seed) {
   Wyhash self = wyhash_init(seed);
   if (input_len <= 16) {
-    wyhash_small_key(&self, input, input_len);
+    _wyhash_small_key(&self, input, input_len);
   } else {
     u64 i = 0;
     if (input_len >= 48) {
       while (i + 48 < input_len) {
-        wy_round(&self, input);
+        _wy_round(&self, input);
         i += 48;
       }
-      final0(&self);
+      _wy_final0(&self);
     }
-    final1(&self, input, input_len, i);
+    _wy_final1(&self, input, input_len, i);
   }
 
   self.total_len = input_len;
-  return final2(&self);
+  return _wy_final2(&self);
 }
 
 u64 wyhash_auto(const hash_map_context ctx, const void *key) {
