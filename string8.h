@@ -211,8 +211,8 @@ u64 str_parse_unsigned(const string8 s) {
     exit(1);
   }
   char input[21];
-  memcpy(input, s.str, s.size);
-  input[s.size] = '\0';
+  memcpy(input, trimmed.str, trimmed.size);
+  input[trimmed.size] = '\0';
   return strtoul(input, NULL, 10);
 }
 
