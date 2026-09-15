@@ -15,6 +15,7 @@
 #include "arena.h"
 
 typedef uint64_t u64;
+typedef int64_t i64;
 typedef uint8_t u8;
 typedef double f64;
 typedef u8 b8;
@@ -50,6 +51,7 @@ b8 str_split_once(string8 splitted[2], string8 input, string8 delim);
 void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
               const string8 *elems);
 
+i64 str_parse_signed(const string8 s);
 u64 str_parse_unsigned(const string8 s);
 f64 str_parse_float(const string8 s);
 
@@ -200,6 +202,24 @@ void str_join(mem_arena *arena, string8 *dst, const string8 glue, u64 n_elem,
   }
 }
 
+i64 str_parse_signed(const string8 s) {
+  string8 trimmed = str_trim(s);
+  if (trimmed.size > 20) {
+    fprintf(stderr, "Number has more digits than largest signed long int");
+    exit(1);
+  }
+  char input[21];
+  memcpy(input, trimmed.str, trimmed.size);
+  input[trimmed.size] = '\0';
+  char *eptr;
+  i64 r = strtoll(input, &eptr, 10);
+  if (*eptr != '\0') {
+    fprintf(stderr, "Could not parse signed int: " STR8_FMT "\n", STR8_UNWRAP(s));
+    exit(1);
+  }
+  return r;
+}
+
 u64 str_parse_unsigned(const string8 s) {
   string8 trimmed = str_trim(s);
   if (trimmed.size > 20) {
@@ -213,7 +233,13 @@ u64 str_parse_unsigned(const string8 s) {
   char input[21];
   memcpy(input, trimmed.str, trimmed.size);
   input[trimmed.size] = '\0';
-  return strtoul(input, NULL, 10);
+  char *eptr;
+  u64 r = strtoul(input, NULL, 10);
+  if (*eptr != '\0') {
+    fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n", STR8_UNWRAP(s));
+    exit(1);
+  }
+  return r;
 }
 
 f64 str_parse_float(const string8 s) {
@@ -221,7 +247,13 @@ f64 str_parse_float(const string8 s) {
   char input[128];
   memcpy(input, s.str, s.size);
   input[s.size] = '\0';
-  return atof(input);
+  char *eptr;
+  f64 r = strtof(input, &eptr);
+  if (*eptr != '\0') {
+    fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n", STR8_UNWRAP(s));
+    exit(1);
+  }
+  return r;
 }
 
 #endif
