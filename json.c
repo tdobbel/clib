@@ -33,8 +33,9 @@ u64 _json_parse_bool(JsonValue *js, string8 s);
 u64 _json_parse_null(JsonValue *js, string8 s);
 
 int main(void) {
-  string8 s = STR8_LIT("{\"a\": 10, \"b\": -1.5e-3, \"c\": \"coucou\", \"d\": "
-                       "null, \"e\": true}");
+  string8 s = STR8_LIT("{\"a\": 10, \"b\": -1.5e-3, \"x\": [\"a\", 1, null], "
+                       "\"c\": \"coucou\", \"d\": null, \"e\": true}");
+  // string8 s = STR8_LIT("{\"a\": null}");
   JsonValue *js = json_parse(s);
   hash_map *hm = (hash_map *)js->value;
   kv_iterator kvi = hm_iterator(hm);
@@ -63,6 +64,9 @@ int main(void) {
       printf(STR8_FMT " => null\n", STR8_UNWRAP(key));
       break;
     case Array:
+      vector *vec = (vector *)val->value;
+      printf(STR8_FMT " => array of size %lu and capacity %lu\n", STR8_UNWRAP(key), vec->size, vec->capacity);
+      break;
     case Object:
       break;
     }
@@ -120,8 +124,6 @@ void json_free(JsonValue *js) {
   }
   free(js);
 }
-
-u64 _json_parse_array(JsonValue *js, string8 s) { return 0; };
 
 static b8 is_valid(u8 c) {
   b8 isnum = c >= '0' && c <= '9';
@@ -194,10 +196,70 @@ u64 _json_parse_null(JsonValue *js, string8 s) {
   exit(1);
 }
 
+u64 _json_parse_array(JsonValue *js, string8 s) {
+  assert(s.str[0] == '[');
+  u64 n = 1;
+  vector *vec = VEC_CREATE(JsonValue *);
+  while (n < s.size && s.str[n] != ']') {
+    while (n < s.size && isspace(s.str[n]))
+      n++;
+    if (s.str[n] == ']')
+      break;
+
+    JsonValue *value = (JsonValue *)malloc(sizeof(JsonValue));
+    u64 n_parsed;
+    string8 rhs = (string8){.str = s.str + n, .size = s.size - n};
+    switch (s.str[n]) {
+    case '{':
+      n_parsed = _json_parse_object(value, rhs);
+      break;
+    case '[':
+      n_parsed = _json_parse_array(value, rhs);
+      break;
+    case '"':
+      n_parsed = _json_parse_string(value, rhs);
+      break;
+    case 't':
+    case 'f':
+      n_parsed = _json_parse_bool(value, rhs);
+      break;
+    case 'n':
+      n_parsed = _json_parse_null(value, rhs);
+      break;
+    case '-':
+    case '0' ... '9':
+      n_parsed = _json_parse_number(value, rhs);
+      break;
+    default:
+      fprintf(stderr, "Could not parse json entry\n");
+      exit(1);
+    }
+    VEC_PUSH(vec, JsonValue *, value);
+    printf("Add entry to array\n");
+    n += n_parsed;
+    while (n < s.size && isspace(s.str[n]))
+      n++;
+    if (n >= s.size)
+      break;
+    if (s.str[n] == ',') {
+      n++;
+    } else if (s.str[n] == ']') {
+      ;
+    } else {
+      fprintf(stderr, "Could not parse json\n");
+      exit(1);
+    }
+  }
+  assert(n < s.size && s.str[n++] == ']');
+  js->type = Array;
+  js->value = vec;
+  printf("%lu entries added\n", vec->size);
+  return n;
+}
+
 u64 _json_parse_object(JsonValue *js, string8 s) {
   assert(s.str[0] == '{');
-  js->type = Object;
-  js->value = STRING_HASHMAP(JsonValue *);
+  hash_map *hm = STRING_HASHMAP(JsonValue *);
   u64 n = 1;
   while (n < s.size && s.str[n] != '}') {
     while (n < s.size && isspace(s.str[n])) {
@@ -221,7 +283,7 @@ u64 _json_parse_object(JsonValue *js, string8 s) {
     while (n < s.size && isspace(s.str[n])) {
       n++;
     }
-    JsonValue *value = (JsonValue *)malloc(sizeof(JsonValue *));
+    JsonValue *value = (JsonValue *)malloc(sizeof(JsonValue));
     string8 rhs = (string8){.str = s.str + n, .size = s.size - n};
     u64 n_parsed;
     switch (s.str[n]) {
@@ -249,7 +311,7 @@ u64 _json_parse_object(JsonValue *js, string8 s) {
       fprintf(stderr, "Could not parse json entry\n");
       exit(1);
     }
-    hm_put(js->value, &key, &value);
+    hm_put(hm, &key, &value);
     n += n_parsed;
     while (n < s.size && isspace(s.str[n])) {
       n++;
@@ -266,5 +328,7 @@ u64 _json_parse_object(JsonValue *js, string8 s) {
     }
   }
   assert(n < s.size && s.str[n++] == '}');
+  js->type = Object;
+  js->value = hm;
   return n;
 }
