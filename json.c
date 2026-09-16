@@ -10,21 +10,21 @@
 #define HASHMAP_IMPLEMENTATION
 #include "hash_map.h"
 
-typedef enum _json_value_type ValueType;
-
 enum _json_value_type { Object, Array, Float, Int, String, Bool, Null };
+typedef enum _json_value_type ValueType;
 
 typedef struct {
   ValueType type;
   void *value;
 } JsonValue;
 
-string8 _str_true = STR8_LIT("true");
-string8 _str_false = STR8_LIT("false");
-string8 _str_null = STR8_LIT("null");
+static string8 _str_true = STR8_LIT("true");
+static string8 _str_false = STR8_LIT("false");
+static string8 _str_null = STR8_LIT("null");
 
 JsonValue *json_parse(string8 s);
 void json_free(JsonValue *js);
+void json_print(const JsonValue *js, const JsonValue *parent, u8 indent);
 u64 _json_parse_object(JsonValue *js, string8 s);
 u64 _json_parse_array(JsonValue *js, string8 s);
 u64 _json_parse_string(JsonValue *js, string8 s);
@@ -37,40 +37,7 @@ int main(void) {
                        "\"c\": \"coucou\", \"d\": null, \"e\": true}");
   // string8 s = STR8_LIT("{\"a\": null}");
   JsonValue *js = json_parse(s);
-  hash_map *hm = (hash_map *)js->value;
-  kv_iterator kvi = hm_iterator(hm);
-  while (get_next(&kvi)) {
-    string8 key = *(string8 *)kvi.key_ptr;
-    JsonValue *val = *(JsonValue **)kvi.value_ptr;
-    switch (val->type) {
-    case Int:
-      i64 vint = *(i64 *)val->value;
-      printf(STR8_FMT " => %ld\n", STR8_UNWRAP(key), vint);
-      break;
-    case Float:
-      f64 vfloat = *(f64 *)val->value;
-      printf(STR8_FMT " => %f\n", STR8_UNWRAP(key), vfloat);
-      break;
-    case String:
-      string8 str8 = *(string8 *)val->value;
-      printf(STR8_FMT " => " STR8_FMT "\n", STR8_UNWRAP(key),
-             STR8_UNWRAP(str8));
-      break;
-    case Bool:
-      b8 flag = *(b8 *)val->value;
-      printf(STR8_FMT " => %hu\n", STR8_UNWRAP(key), flag);
-      break;
-    case Null:
-      printf(STR8_FMT " => null\n", STR8_UNWRAP(key));
-      break;
-    case Array:
-      vector *vec = (vector *)val->value;
-      printf(STR8_FMT " => array of size %lu and capacity %lu\n", STR8_UNWRAP(key), vec->size, vec->capacity);
-      break;
-    case Object:
-      break;
-    }
-  }
+  json_print(js, NULL, 0);
   json_free(js);
 
   return 0;
@@ -123,6 +90,75 @@ void json_free(JsonValue *js) {
     vector_free(vec);
   }
   free(js);
+}
+
+void json_print(const JsonValue *js, const JsonValue *parent, u8 indent) {
+  char prefix[256];
+  for (u8 i = 0; i < indent; ++i) {
+    prefix[i] = ' ';
+  }
+  b8 inside_object = parent != NULL && parent->type == Object;
+  prefix[indent] = '\0';
+  switch (js->type) {
+  case Null:
+    printf("%snull", inside_object ? "" : prefix);
+    break;
+  case Bool:
+    b8 flag = *(b8 *)js->value;
+    printf("%s%s", inside_object ? "" : prefix, flag ? "true" : "false");
+    break;
+  case String:
+    string8 s = *(string8 *)js->value;
+    printf("%s\"" STR8_FMT "\"", inside_object ? "" : prefix, STR8_UNWRAP(s));
+    break;
+  case Int:
+    i64 inum = *(i64 *)js->value;
+    printf("%s%ld", inside_object ? "" : prefix, inum);
+    break;
+  case Float:
+    f64 fnum = *(f64 *)js->value;
+    printf("%s%f", inside_object ? "" : prefix, fnum);
+    break;
+  case Array:
+    vector *vec = (vector *)js->value;
+    if (vec->size == 0) {
+      printf("%s[]", inside_object ? "" : prefix);
+      break;
+    }
+    JsonValue **values = (JsonValue **)vec->data;
+    printf("%s[\n", inside_object ? "" : prefix);
+    for (u64 i = 0; i < vec->size; ++i) {
+      json_print(values[i], js, indent + 2);
+      if (i < vec->size - 1)
+        printf(",");
+      printf("\n");
+    }
+    printf("%s]", prefix);
+    break;
+  case Object:
+    hash_map *hm = (hash_map *)js->value;
+    if (hm->size == 0) {
+      printf("%s{}", inside_object ? "" : prefix);
+      break;
+    }
+    kv_iterator kvi = hm_iterator(hm);
+    printf("%s{\n", inside_object ? "" : prefix);
+    u64 cntr = 0;
+    while (get_next(&kvi)) {
+      string8 key = *(string8 *)kvi.key_ptr;
+      JsonValue *value = *(JsonValue **)kvi.value_ptr;
+      printf("%s  \"" STR8_FMT "\": ", prefix, STR8_UNWRAP(key));
+      json_print(value, js, indent + 2);
+      cntr++;
+      if (cntr < hm->size)
+        printf(",");
+      printf("\n");
+    }
+    printf("%s}", prefix);
+    break;
+  }
+  if (parent == NULL)
+    printf("\n");
 }
 
 static b8 is_valid(u8 c) {
@@ -235,7 +271,6 @@ u64 _json_parse_array(JsonValue *js, string8 s) {
       exit(1);
     }
     VEC_PUSH(vec, JsonValue *, value);
-    printf("Add entry to array\n");
     n += n_parsed;
     while (n < s.size && isspace(s.str[n]))
       n++;
@@ -253,7 +288,6 @@ u64 _json_parse_array(JsonValue *js, string8 s) {
   assert(n < s.size && s.str[n++] == ']');
   js->type = Array;
   js->value = vec;
-  printf("%lu entries added\n", vec->size);
   return n;
 }
 
