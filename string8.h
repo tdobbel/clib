@@ -211,7 +211,7 @@ i64 str_parse_signed(const string8 s) {
   char input[21];
   memcpy(input, trimmed.str, trimmed.size);
   input[trimmed.size] = '\0';
-  char *eptr;
+  char *eptr = NULL;
   i64 r = strtoll(input, &eptr, 10);
   if (*eptr != '\0') {
     fprintf(stderr, "Could not parse signed int: " STR8_FMT "\n", STR8_UNWRAP(s));
@@ -233,7 +233,7 @@ u64 str_parse_unsigned(const string8 s) {
   char input[21];
   memcpy(input, trimmed.str, trimmed.size);
   input[trimmed.size] = '\0';
-  char *eptr;
+  char *eptr = NULL;
   u64 r = strtoul(input, NULL, 10);
   if (*eptr != '\0') {
     fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n", STR8_UNWRAP(s));
@@ -247,7 +247,7 @@ f64 str_parse_float(const string8 s) {
   char input[128];
   memcpy(input, s.str, s.size);
   input[s.size] = '\0';
-  char *eptr;
+  char *eptr = NULL;
   f64 r = strtof(input, &eptr);
   if (*eptr != '\0') {
     fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n", STR8_UNWRAP(s));

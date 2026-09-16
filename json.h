@@ -1,13 +1,27 @@
+#ifndef _JSON_H_
+#define _JSON_H_
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef STRING_IMPLEMENTATION
 #define STRING_IMPLEMENTATION
+#endif
+
 #include "string8.h"
+
+#ifndef VECTOR_IMPLEMENTATION
 #define VECTOR_IMPLEMENTATION
+#endif
+
 #include "vector.h"
+
+#ifndef HASHMAP_IMPLEMENTATION
 #define HASHMAP_IMPLEMENTATION
+#endif
+
 #include "hash_map.h"
 
 enum _json_value_type { Object, Array, Float, Int, String, Bool, Null };
@@ -18,9 +32,9 @@ typedef struct {
   void *value;
 } JsonValue;
 
-static string8 _str_true = STR8_LIT("true");
-static string8 _str_false = STR8_LIT("false");
-static string8 _str_null = STR8_LIT("null");
+static const char *__str_true = "true";
+static const char *__str_false = "false";
+static const char *__str_null = "null";
 
 JsonValue *json_parse(string8 s);
 void json_free(JsonValue *js);
@@ -32,16 +46,7 @@ u64 _json_parse_number(JsonValue *js, string8 s);
 u64 _json_parse_bool(JsonValue *js, string8 s);
 u64 _json_parse_null(JsonValue *js, string8 s);
 
-int main(void) {
-  string8 s = STR8_LIT("{\"a\": 10, \"b\": -1.5e-3, \"x\": [\"a\", 1, null], "
-                       "\"c\": \"coucou\", \"d\": null, \"e\": true}");
-  // string8 s = STR8_LIT("{\"a\": null}");
-  JsonValue *js = json_parse(s);
-  json_print(js, NULL, 0);
-  json_free(js);
-
-  return 0;
-}
+#ifdef JSON_IMPLEMENTATION
 
 JsonValue *json_parse(string8 s) {
   string8 s2 = str_trim(s);
@@ -57,6 +62,9 @@ JsonValue *json_parse(string8 s) {
 }
 
 void json_free(JsonValue *js) {
+  hash_map *hm = NULL;
+  string8 *s = NULL;
+  vector *vec = NULL;
   switch (js->type) {
   case Bool:
   case Int:
@@ -64,12 +72,12 @@ void json_free(JsonValue *js) {
     free(js->value);
     break;
   case String:
-    string8 *s = (string8 *)js->value;
+    s = (string8 *)js->value;
     free(s->str);
     free(js->value);
     break;
   case Object:
-    hash_map *hm = (hash_map *)js->value;
+    hm = (hash_map *)js->value;
     kv_iterator kvi = hm_iterator(hm);
     while (get_next(&kvi)) {
       string8 s = *(string8 *)kvi.key_ptr;
@@ -82,7 +90,7 @@ void json_free(JsonValue *js) {
   case Null:
     break;
   case Array:
-    vector *vec = (vector *)js->value;
+    vec = (vector *)js->value;
     JsonValue **entries = (JsonValue **)vec->data;
     for (u64 i = 0; i < vec->size; ++i) {
       json_free(entries[i]);
@@ -93,6 +101,12 @@ void json_free(JsonValue *js) {
 }
 
 void json_print(const JsonValue *js, const JsonValue *parent, u8 indent) {
+  hash_map *hm = NULL;
+  string8 s = {0};
+  vector *vec = NULL;
+  b8 flag;
+  i64 inum;
+  f64 fnum;
   char prefix[256];
   for (u8 i = 0; i < indent; ++i) {
     prefix[i] = ' ';
@@ -104,23 +118,23 @@ void json_print(const JsonValue *js, const JsonValue *parent, u8 indent) {
     printf("%snull", inside_object ? "" : prefix);
     break;
   case Bool:
-    b8 flag = *(b8 *)js->value;
+    flag = *(b8 *)js->value;
     printf("%s%s", inside_object ? "" : prefix, flag ? "true" : "false");
     break;
   case String:
-    string8 s = *(string8 *)js->value;
+    s = *(string8 *)js->value;
     printf("%s\"" STR8_FMT "\"", inside_object ? "" : prefix, STR8_UNWRAP(s));
     break;
   case Int:
-    i64 inum = *(i64 *)js->value;
+    inum = *(i64 *)js->value;
     printf("%s%ld", inside_object ? "" : prefix, inum);
     break;
   case Float:
-    f64 fnum = *(f64 *)js->value;
+    fnum = *(f64 *)js->value;
     printf("%s%f", inside_object ? "" : prefix, fnum);
     break;
   case Array:
-    vector *vec = (vector *)js->value;
+    vec = (vector *)js->value;
     if (vec->size == 0) {
       printf("%s[]", inside_object ? "" : prefix);
       break;
@@ -136,7 +150,7 @@ void json_print(const JsonValue *js, const JsonValue *parent, u8 indent) {
     printf("%s]", prefix);
     break;
   case Object:
-    hash_map *hm = (hash_map *)js->value;
+    hm = (hash_map *)js->value;
     if (hm->size == 0) {
       printf("%s{}", inside_object ? "" : prefix);
       break;
@@ -203,16 +217,16 @@ u64 _json_parse_string(JsonValue *js, string8 s) {
   js->value = malloc(sizeof(string8));
   *(string8 *)js->value = dup;
   return n + 1;
-};
+}
 
 u64 _json_parse_bool(JsonValue *js, string8 s) {
-  if (str_starts_with(s, _str_true)) {
+  if (str_starts_with(s, STR8_LIT(__str_true))) {
     js->type = Bool;
     js->value = malloc(1);
     *(u8 *)js->value = 1;
     return 4;
   }
-  if (str_starts_with(s, _str_false)) {
+  if (str_starts_with(s, STR8_LIT(__str_false))) {
     js->type = Bool;
     js->value = malloc(1);
     *(u8 *)js->value = 0;
@@ -223,7 +237,7 @@ u64 _json_parse_bool(JsonValue *js, string8 s) {
 }
 
 u64 _json_parse_null(JsonValue *js, string8 s) {
-  if (str_starts_with(s, _str_null)) {
+  if (str_starts_with(s, STR8_LIT(__str_null))) {
     js->type = Null;
     js->value = NULL;
     return 4;
@@ -263,7 +277,16 @@ u64 _json_parse_array(JsonValue *js, string8 s) {
       n_parsed = _json_parse_null(value, rhs);
       break;
     case '-':
-    case '0' ... '9':
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
       n_parsed = _json_parse_number(value, rhs);
       break;
     default:
@@ -338,7 +361,16 @@ u64 _json_parse_object(JsonValue *js, string8 s) {
       n_parsed = _json_parse_null(value, rhs);
       break;
     case '-':
-    case '0' ... '9':
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
       n_parsed = _json_parse_number(value, rhs);
       break;
     default:
@@ -366,3 +398,6 @@ u64 _json_parse_object(JsonValue *js, string8 s) {
   js->value = hm;
   return n;
 }
+
+#endif
+#endif
