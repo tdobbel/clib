@@ -40,6 +40,8 @@ b8 str_starts_with(string8 s, string8 prefix);
 string8 str_remove_prefix(string8 s, string8 prefix);
 // Return index of first match if found, haystack.size otherwise
 u64 str_contains(string8 haystack, string8 needle);
+string8 str_replace(mem_arena *arena, const string8 s, const string8 sold,
+                    const string8 snew);
 
 string8 str_to_lowercase(mem_arena *arena, string8 s);
 string8 str_to_uppercase(mem_arena *arena, string8 s);
@@ -137,12 +139,40 @@ void str_read_file(mem_arena *arena, string8 *dst, const char *fname) {
 u64 str_contains(string8 haystack, string8 needle) {
   if (haystack.size < needle.size)
     return haystack.size;
-  for (u64 i = 0; i < haystack.size - needle.size; ++i) {
+  for (u64 i = 0; i < haystack.size - needle.size + 1; ++i) {
     string8 test = (string8){.str = haystack.str + i, .size = needle.size};
     if (str_equal(test, needle))
       return i;
   }
   return haystack.size;
+}
+
+string8 str_replace(mem_arena *arena, const string8 s, const string8 sold,
+                    const string8 snew) {
+  u64 n, iend, cntr = 0;
+  string8 s2 = s;
+  while ((n = str_contains(s2, sold)) < s2.size) {
+    cntr++;
+    iend = n + sold.size;
+    s2 = (string8){.str = s2.str + iend, .size = s2.size - iend};
+  }
+  if (cntr == 0)
+    return str_dup(arena, s);
+  u64 new_size = s.size - cntr * sold.size + cntr * snew.size;
+  string8 r =
+      (string8){.str = (u8 *)arena_alloc(arena, new_size), .size = new_size};
+  s2 = s;
+  u64 istart = 0;
+  while ((n = str_contains(s2, sold)) < s2.size) {
+    memcpy(r.str + istart, s2.str, n);
+    memcpy(r.str + istart + n, snew.str, snew.size);
+    istart += snew.size + n;
+    iend = n + sold.size;
+    s2 = (string8){.str = s2.str + iend, .size = s2.size - iend};
+  }
+  assert(r.size - istart == s2.size);
+  memcpy(r.str + istart, s2.str, s2.size);
+  return r;
 }
 
 b8 str_split_once(string8 splitted[2], string8 input, string8 delim) {
@@ -214,7 +244,8 @@ i64 str_parse_signed(const string8 s) {
   char *eptr = NULL;
   i64 r = strtoll(input, &eptr, 10);
   if (*eptr != '\0') {
-    fprintf(stderr, "Could not parse signed int: " STR8_FMT "\n", STR8_UNWRAP(s));
+    fprintf(stderr, "Could not parse signed int: " STR8_FMT "\n",
+            STR8_UNWRAP(s));
     exit(1);
   }
   return r;
@@ -236,7 +267,8 @@ u64 str_parse_unsigned(const string8 s) {
   char *eptr = NULL;
   u64 r = strtoul(input, NULL, 10);
   if (*eptr != '\0') {
-    fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n", STR8_UNWRAP(s));
+    fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n",
+            STR8_UNWRAP(s));
     exit(1);
   }
   return r;
@@ -250,7 +282,8 @@ f64 str_parse_float(const string8 s) {
   char *eptr = NULL;
   f64 r = strtof(input, &eptr);
   if (*eptr != '\0') {
-    fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n", STR8_UNWRAP(s));
+    fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n",
+            STR8_UNWRAP(s));
     exit(1);
   }
   return r;
