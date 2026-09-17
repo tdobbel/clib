@@ -51,12 +51,17 @@ u64 _json_parse_null(JsonValue *js, string8 s);
 JsonValue *json_parse(string8 s) {
   string8 s2 = str_trim(s);
   JsonValue *js = (JsonValue *)malloc(sizeof(JsonValue));
+  u64 n_parsed = 0;
   if (s2.str[0] == '{') {
-    _json_parse_object(js, s2);
+    n_parsed = _json_parse_object(js, s2);
   } else if (s2.str[0] == '[') {
-    _json_parse_array(js, s2);
+    n_parsed = _json_parse_array(js, s2);
   } else {
     fprintf(stderr, "Invalid json string\n");
+  }
+  if (n_parsed < s2.size) {
+    fprintf(stderr, "Could not parse the whole string");
+    exit(1);
   }
   return js;
 }
