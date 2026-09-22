@@ -265,7 +265,7 @@ u64 str_parse_unsigned(const string8 s) {
   memcpy(input, trimmed.str, trimmed.size);
   input[trimmed.size] = '\0';
   char *eptr = NULL;
-  u64 r = strtoul(input, NULL, 10);
+  u64 r = strtoul(input, &eptr, 10);
   if (*eptr != '\0') {
     fprintf(stderr, "Could not parse unsigned int: " STR8_FMT "\n",
             STR8_UNWRAP(s));
