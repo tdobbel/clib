@@ -46,6 +46,8 @@ u64 __json_parse_number(JsonValue *js, string8 s);
 u64 __json_parse_bool(JsonValue *js, string8 s);
 u64 __json_parse_null(JsonValue *js, string8 s);
 
+#define JSON_PRINT(js) json_print(js, NULL, 0)
+
 #ifdef JSON_IMPLEMENTATION
 
 JsonValue *json_parse(string8 s) {
@@ -210,17 +212,53 @@ u64 __json_parse_number(JsonValue *js, string8 s) {
 u64 __json_parse_string(JsonValue *js, string8 s) {
   assert(s.str[0] == '"');
   u64 n = 1;
-  while (n < s.size && s.str[n] != '"') {
+  vector *content;
+  content = VEC_CREATE(u8);
+  for (; n < s.size && s.str[n] != '"'; ++n) {
+    if (s.str[n] != '\\') {
+      VEC_PUSH(content, u8, s.str[n]);
+      continue;
+    }
     n++;
+    switch (s.str[n]) {
+    case '\\':
+      VEC_PUSH(content, u8, '\\');
+      break;
+    case '/':
+      VEC_PUSH(content, u8, '/');
+      break;
+    case '"':
+      VEC_PUSH(content, u8, '"');
+      break;
+    case 'b':
+      VEC_PUSH(content, u8, '\b');
+      break;
+    case 'f':
+      VEC_PUSH(content, u8, '\f');
+      break;
+    case 'n':
+      VEC_PUSH(content, u8, '\n');
+      break;
+    case 't':
+      VEC_PUSH(content, u8, '\t');
+      break;
+    case 'u':
+      fprintf(stderr, "Unicode coming soon...\n");
+      break;
+    default:
+      fprintf(stderr, "Invalid escape sequence \\%c\n", s.str[n]);
+      exit(1);
+    }
   }
   if (n == s.size || s.str[n] != '"') {
     fprintf(stderr, "Could not parse string\n");
     exit(1);
   }
-  string8 dup = str_dup(NULL, (string8){.str = s.str + 1, s.size = n - 1});
   js->type = String;
   js->value = malloc(sizeof(string8));
-  *(string8 *)js->value = dup;
+  *(string8 *)js->value =
+      (string8){.str = content->data, .size = content->size};
+  free(content);
   return n + 1;
 }
 
