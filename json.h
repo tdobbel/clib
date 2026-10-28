@@ -50,6 +50,57 @@ u64 __json_parse_null(JsonValue *js, string8 s);
 
 #ifdef JSON_IMPLEMENTATION
 
+static u32 __parse_hex(string8 hex) {
+  u32 out = 0;
+  for (u64 i = 0; i < hex.size; ++i) {
+    u8 byte = hex.str[i];
+    if ('0' <= byte && byte <= '9') {
+      byte -= '0';
+    } else if (byte >= 'a' && byte <= 'f') {
+      byte += 10 - 'a';
+    } else if (byte >= 'A' && byte <= 'F') {
+      byte += 10 - 'A';
+    } else {
+      fprintf(stderr, "Invalid hex: " STR8_FMT "\n", STR8_UNWRAP(hex));
+      exit(1);
+    }
+    out = (out << 4) | byte;
+  }
+  return out;
+}
+
+static i32 __encode_utf(u32 code_point, u8 encoded[4]) {
+  if (code_point <= 0x007f) {
+    encoded[0] = (u8)code_point;
+    return 1;
+  }
+
+  if (code_point <= 0x07ff) {
+    encoded[0] = (u8)(0xc0 | (code_point >> 6));
+    encoded[1] = (u8)(0x80 | (code_point & 0x3f));
+    return 2;
+  }
+
+  if (code_point <= 0xffff) {
+    if (0xd800 <= code_point && code_point <= 0xdbff)
+      return 0; // surrogate pair
+    encoded[0] = (u8)(0xE0 | (code_point >> 12));
+    encoded[1] = (u8)(0x80 | ((code_point >> 6) & 0x3F));
+    encoded[2] = (u8)(0x80 | (code_point & 0x3F));
+    return 3;
+  }
+
+  if (code_point <= 0x10FFFF) {
+    encoded[0] = (u8)(0xF0 | (code_point >> 18));
+    encoded[1] = (u8)(0x80 | ((code_point >> 12) & 0x3F));
+    encoded[2] = (u8)(0x80 | ((code_point >> 6) & 0x3F));
+    encoded[3] = (u8)(0x80 | (code_point & 0x3F));
+    return 4;
+  }
+
+  return -1;
+}
+
 JsonValue *json_parse(string8 s) {
   string8 s2 = str_trim(s);
   JsonValue *js = (JsonValue *)malloc(sizeof(JsonValue));
@@ -214,36 +265,71 @@ u64 __json_parse_string(JsonValue *js, string8 s) {
   u64 n = 1;
   vector *content;
   content = VEC_CREATE(u8);
-  for (; n < s.size && s.str[n] != '"'; ++n) {
+  while (n < s.size && s.str[n] != '"') {
     if (s.str[n] != '\\') {
       VEC_PUSH(content, u8, s.str[n]);
+      n++;
       continue;
     }
-    n++;
+    n++; // skip backslash
     switch (s.str[n]) {
     case '\\':
       VEC_PUSH(content, u8, '\\');
+      n++;
       break;
     case '/':
       VEC_PUSH(content, u8, '/');
+      n++;
       break;
     case '"':
       VEC_PUSH(content, u8, '"');
+      n++;
       break;
     case 'b':
       VEC_PUSH(content, u8, '\b');
+      n++;
       break;
     case 'f':
       VEC_PUSH(content, u8, '\f');
+      n++;
       break;
     case 'n':
       VEC_PUSH(content, u8, '\n');
+      n++;
       break;
     case 't':
       VEC_PUSH(content, u8, '\t');
+      n++;
       break;
     case 'u':
-      fprintf(stderr, "Unicode coming soon...\n");
+      n++;
+      string8 hex;
+      hex = (string8){.str = s.str + n, .size = 4};
+      u32 code_point = __parse_hex(hex);
+      u8 encoded[4];
+      i32 n_byte = __encode_utf(code_point, encoded);
+      n += 4;
+      if (n_byte == 0) { // surrogate
+        assert(s.str[n] == '\\' && s.str[n + 1] == 'u');
+        n += 2;
+        u32 high = code_point;
+        hex = (string8){.str = s.str + n, .size = 4};
+        u32 low = __parse_hex(hex);
+        if (low < 0xdc00 || low > 0xdfff) {
+          fprintf(stderr, "Invalid surrogate pair\n");
+          exit(1);
+        }
+        code_point = 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
+        n += 4;
+        n_byte = __encode_utf(code_point, encoded);
+      }
+      if (n_byte <= 0) {
+        fprintf(stderr, "Invalid code point\n");
+        exit(1);
+      }
+      for (u8 ibyte = 0; ibyte < n_byte; ++ibyte) {
+        VEC_PUSH(content, u8, encoded[ibyte]);
+      }
       break;
     default:
       fprintf(stderr, "Invalid escape sequence \\%c\n", s.str[n]);
