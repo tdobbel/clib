@@ -17,6 +17,8 @@ typedef uint64_t u64;
 typedef uint8_t u8;
 typedef u8 b8;
 
+// Vector
+
 typedef struct {
   u64 size, capacity;
 } vec_meta;
@@ -84,6 +86,36 @@ void str_split(vector *vec, string8 base, string8 sep);
   } while (0)
 
 #define HVEC_FREE(vec) free((vec_meta *)(vec) - 1)
+
+// Priority queue
+
+typedef enum { lt, gt, eq } Order;
+typedef Order (*compareFn)(const void *, const void *, const void *);
+
+typedef struct {
+  u64 item_size;
+  u64 capacity;
+  void *ctx;
+  compareFn compare_fn;
+  u64 size;
+  u8 *items;
+} PriorityQueue;
+
+void __pq_sift_up(PriorityQueue *self, u64 start_index);
+void __pq_sift_down(PriorityQueue *self, u64 start_index);
+void __pq_set_item(PriorityQueue *self, void *item, u64 index);
+void __pq_get_item(const PriorityQueue *self, void *dst, u64 index);
+
+PriorityQueue *priority_queue_init(u64 cap, u64 item_size, void *ctx,
+                                   compareFn compare_fn);
+void priority_queue_push(PriorityQueue *self, void *item);
+void priority_queue_deinit(PriorityQueue *self);
+void *priority_queue_peek(const PriorityQueue *self);
+void priority_queue_pop_index(PriorityQueue *self, void *dst, u64 index);
+void priority_queue_pop(PriorityQueue *self, void *dst);
+
+#define PRIORITY_QUEUE_CREATE(T, ctx, compareFn)                               \
+  priority_queue_init(BASE_VEC_CAPACITY, sizeof(T), ctx, compareFn)
 
 #ifdef VECTOR_IMPLEMENTATION
 
@@ -220,6 +252,117 @@ void str_split(vector *vec, string8 base, string8 sep) {
 }
 
 #endif
+
+PriorityQueue *priority_queue_init(u64 cap, u64 item_size, void *ctx,
+                                   compareFn compare_fn) {
+  PriorityQueue *self = (PriorityQueue *)malloc(sizeof(PriorityQueue));
+  self->capacity = cap;
+  self->item_size = item_size;
+  self->ctx = ctx;
+  self->compare_fn = compare_fn;
+  self->size = 0;
+  self->items = (u8 *)malloc(item_size * cap);
+  return self;
+}
+
+void priority_queue_deinit(PriorityQueue *self) {
+  free(self->items);
+  free(self);
+}
+
+void __pq_set_item(PriorityQueue *self, void *item, u64 index) {
+  assert(index < self->size);
+  memcpy(self->items + self->item_size * index, item, self->item_size);
+}
+
+void __pq_get_item(const PriorityQueue *self, void *dst, u64 index) {
+  assert(index < self->size);
+  memcpy(dst, self->items + self->item_size * index, self->item_size);
+}
+
+void priority_queue_push(PriorityQueue *self, void *item) {
+  if (self->size == self->capacity) {
+    self->capacity *= 2;
+    self->items = (u8 *)realloc(self->items, self->capacity * self->item_size);
+  }
+  self->size++;
+  __pq_set_item(self, item, self->size - 1);
+  __pq_sift_up(self, self->size - 1);
+}
+
+void __pq_sift_up(PriorityQueue *self, u64 start_index) {
+  void *child = malloc(self->item_size);
+  __pq_get_item(self, child, start_index);
+  void *parent = malloc(self->item_size);
+  u64 child_index = start_index;
+  while (child_index > 0) {
+    u64 parent_index = ((child_index - 1) >> 1);
+    __pq_get_item(self, parent, parent_index);
+    if (self->compare_fn(self->ctx, child, parent) != lt)
+      break;
+    __pq_set_item(self, parent, child_index);
+    child_index = parent_index;
+  }
+  __pq_set_item(self, child, child_index);
+  free(child);
+  free(parent);
+}
+
+void __pq_sift_down(PriorityQueue *self, u64 target_index) {
+  void *target_element = malloc(self->item_size);
+  __pq_get_item(self, target_element, target_index);
+  u64 index = target_index;
+  while (1) {
+    u64 lesser_child_i = (index * 2) | 1;
+    if (lesser_child_i >= self->size)
+      break;
+    u64 next_child_i = lesser_child_i + 1;
+    void *lesser_child = self->items + self->item_size * lesser_child_i;
+    void *next_child = self->items + self->item_size * next_child_i;
+    if (next_child_i < self->size &&
+        self->compare_fn(self->ctx, next_child, lesser_child) == lt) {
+      lesser_child_i = next_child_i;
+    }
+
+    lesser_child = self->items + self->item_size * lesser_child_i;
+
+    if (self->compare_fn(self->ctx, target_element, lesser_child) == lt)
+      break;
+    __pq_set_item(self, lesser_child, index);
+    index = lesser_child_i;
+  }
+  __pq_set_item(self, target_element, index);
+  free(target_element);
+}
+
+void *priority_queue_peek(const PriorityQueue *self) {
+  return self->size == 0 ? NULL : self->items;
+}
+
+void priority_queue_pop_index(PriorityQueue *self, void *dst, u64 index) {
+  assert(self->size > index);
+  __pq_get_item(self, dst, index);
+  void *last = self->items + (self->size - 1) * self->item_size;
+  __pq_set_item(self, last, index);
+  self->size--;
+  if (index == self->size) {
+    // Last element removed, nothing more to do.
+  } else if (index == 0) {
+    __pq_sift_down(self, index);
+  } else {
+    u64 parent_index = ((index - 1) >> 1);
+    void *parent = self->items + parent_index * self->item_size;
+    if (self->compare_fn(self->ctx, last, parent) == gt) {
+      __pq_sift_down(self, index);
+    } else {
+      __pq_sift_up(self, index);
+    }
+  }
+}
+
+void priority_queue_pop(PriorityQueue *self, void *dst) {
+  priority_queue_pop_index(self, dst, 0);
+}
 
 #endif
 #endif
