@@ -2,6 +2,7 @@
 #define _VECTOR_H_
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,8 +35,10 @@ vector *vector_create(mem_arena *arena, u64 item_size);
 void vector_deinit(vector *vec);
 
 void vector_get(vector *vec, void *item, u64 index);
+void *vector_get_ref_unsafe(vector *vec, u64 index);
 void *vector_get_ref(vector *vec, u64 index);
 void vector_get_last(vector *vec, void *item);
+void vector_set_unsafe(vector *self, void *item, u64 index);
 void vector_set(vector *self, void *item, u64 index);
 
 void vector_grow(vector *vec);
@@ -43,7 +46,7 @@ void vector_push(vector *vec, void *item);
 void vector_extend(vector *vec, vector *extra_vec);
 
 void vector_remove(vector *vec, u64 index);
-void vector_pop(vector *vec, void *item);
+b8 vector_pop(vector *vec, void *item);
 
 u64 vector_index(vector *vec, const void *needle, __vec_eq_fn_t eq);
 b8 vector_contains(vector *vec, const void *needle, __vec_eq_fn_t eq);
@@ -85,6 +88,22 @@ void str_split(vector *vec, string8 base, string8 sep);
 
 #define HVEC_FREE(vec) free((vec_meta *)(vec) - 1)
 
+// Queue
+
+typedef struct {
+  vector *items;
+  u64 start;
+} Queue;
+
+Queue *queue_init(u64 item_size);
+void queue_deinit(Queue *q);
+
+u64 queue_len(Queue *self);
+void queue_push(Queue *self, void *item);
+b8 queue_pop(Queue *self, void *item);
+
+#define QUEUE_CREATE(T) queue_init(sizeof(T))
+
 // Priority queue
 
 typedef enum { lt, gt, eq } Order;
@@ -107,7 +126,7 @@ u64 priority_queue_len(PriorityQueue *self);
 void priority_queue_push(PriorityQueue *self, void *item);
 void *priority_queue_peek(const PriorityQueue *self);
 void priority_queue_pop_index(PriorityQueue *self, void *dst, u64 index);
-void priority_queue_pop(PriorityQueue *self, void *dst);
+b8 priority_queue_pop(PriorityQueue *self, void *dst);
 
 #define PRIORITY_QUEUE_CREATE(T, ctx, compareFn)                               \
   priority_queue_init(sizeof(T), ctx, compareFn)
@@ -130,6 +149,12 @@ void vector_get(vector *vec, void *item, u64 index) {
   memcpy(item, vec->items + index * vec->item_size, vec->item_size);
 }
 
+void *vector_get_ref_unsafe(vector *vec, u64 index) {
+  if (index >= vec->capacity)
+    return NULL;
+  return vec->items + index * vec->item_size;
+}
+
 void *vector_get_ref(vector *vec, u64 index) {
   if (index >= vec->size)
     return NULL;
@@ -140,14 +165,22 @@ void vector_get_last(vector *vec, void *item) {
   vector_get(vec, item, vec->size - 1);
 }
 
+void vector_set_unsafe(vector *vec, void *item, u64 index) {
+  assert(index < vec->capacity);
+  memcpy(vec->items + index * vec->item_size, item, vec->item_size);
+}
+
 void vector_set(vector *vec, void *item, u64 index) {
   assert(index < vec->size);
   memcpy(vec->items + index * vec->item_size, item, vec->item_size);
 }
 
-void vector_pop(vector *vec, void *item) {
+b8 vector_pop(vector *vec, void *item) {
+  if (vec->size == 0)
+    return false;
   vector_get_last(vec, item);
   vec->size--;
+  return true;
 }
 
 void vector_grow(vector *vec) {
@@ -259,6 +292,45 @@ void str_split(vector *vec, string8 base, string8 sep) {
 
 #endif
 
+Queue *queue_init(u64 item_size) {
+  Queue *self = (Queue *)malloc(sizeof(Queue));
+  self->items = vector_create(NULL, item_size);
+  self->start = 0;
+  return self;
+}
+
+void queue_deinit(Queue *self) {
+  vector_deinit(self->items);
+  free(self);
+}
+
+u64 queue_len(Queue *self) { return self->items->size; }
+
+void queue_push(Queue *self, void *item) {
+  if (self->items->size == self->items->capacity) {
+    u64 old_cap = self->items->capacity;
+    vector_grow(self->items);
+    u64 n_item = (self->start + queue_len(self)) & (old_cap - 1);
+    void *dst = vector_get_ref_unsafe(self->items, old_cap);
+    void *src = vector_get_ref(self->items, 0);
+    printf("%d, %d\n", src == NULL, dst == NULL);
+    memcpy(dst, src, n_item * self->items->item_size);
+  }
+  u64 index = (self->start + self->items->size) & (self->items->capacity - 1);
+  self->items->size++;
+  vector_set_unsafe(self->items, item, index);
+}
+
+b8 queue_pop(Queue *self, void *item) {
+  if (queue_len(self) == 0)
+    return false;
+  void *src = vector_get_ref_unsafe(self->items, self->start);
+  memcpy(item, src, self->items->item_size);
+  self->start = (self->start + 1) & (self->items->capacity - 1);
+  self->items->size--;
+  return true;
+}
+
 PriorityQueue *priority_queue_init(u64 item_size, void *ctx,
                                    compareFn compare_fn) {
   PriorityQueue *self = (PriorityQueue *)malloc(sizeof(PriorityQueue));
@@ -350,8 +422,11 @@ void priority_queue_pop_index(PriorityQueue *self, void *dst, u64 index) {
   }
 }
 
-void priority_queue_pop(PriorityQueue *self, void *dst) {
+b8 priority_queue_pop(PriorityQueue *self, void *dst) {
+  if (priority_queue_len(self) == 0)
+    return false;
   priority_queue_pop_index(self, dst, 0);
+  return true;
 }
 
 #endif
