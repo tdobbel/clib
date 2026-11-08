@@ -313,7 +313,6 @@ void queue_push(Queue *self, void *item) {
     u64 n_item = (self->start + queue_len(self)) & (old_cap - 1);
     void *dst = vector_get_ref_unsafe(self->items, old_cap);
     void *src = vector_get_ref(self->items, 0);
-    printf("%d, %d\n", src == NULL, dst == NULL);
     memcpy(dst, src, n_item * self->items->item_size);
   }
   u64 index = (self->start + self->items->size) & (self->items->capacity - 1);
