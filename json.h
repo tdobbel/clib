@@ -149,11 +149,11 @@ void json_free(JsonValue *js) {
     break;
   case Array:
     vec = (vector *)js->value;
-    JsonValue **entries = (JsonValue **)vec->data;
+    JsonValue **entries = (JsonValue **)vec->items;
     for (u64 i = 0; i < vec->size; ++i) {
       json_free(entries[i]);
     }
-    vector_free(vec);
+    vector_deinit(vec);
   }
   free(js);
 }
@@ -197,7 +197,7 @@ void json_print(const JsonValue *js, const JsonValue *parent, u8 indent) {
       printf("%s[]", inside_object ? "" : prefix);
       break;
     }
-    JsonValue **values = (JsonValue **)vec->data;
+    JsonValue **values = (JsonValue **)vec->items;
     printf("%s[\n", inside_object ? "" : prefix);
     for (u64 i = 0; i < vec->size; ++i) {
       json_print(values[i], js, indent + 2);
@@ -267,38 +267,43 @@ u64 __json_parse_string(JsonValue *js, string8 s) {
   content = VEC_CREATE(u8);
   while (n < s.size && s.str[n] != '"') {
     if (s.str[n] != '\\') {
-      VEC_PUSH(content, u8, s.str[n]);
+      vector_push(content, &s.str[n]);
       n++;
       continue;
     }
+    u8 c;
     n++; // skip backslash
     switch (s.str[n]) {
     case '\\':
-      VEC_PUSH(content, u8, '\\');
+      vector_push(content, &s.str[n]);
       n++;
       break;
     case '/':
-      VEC_PUSH(content, u8, '/');
+      vector_push(content, &s.str[n]);
       n++;
       break;
     case '"':
-      VEC_PUSH(content, u8, '"');
+      vector_push(content, &s.str[n]);
       n++;
       break;
     case 'b':
-      VEC_PUSH(content, u8, '\b');
+      c = '\b';
+      vector_push(content, &c);
       n++;
       break;
     case 'f':
-      VEC_PUSH(content, u8, '\f');
+      c = '\f';
+      vector_push(content, &c);
       n++;
       break;
     case 'n':
-      VEC_PUSH(content, u8, '\n');
+      c = '\n';
+      vector_push(content, &c);
       n++;
       break;
     case 't':
-      VEC_PUSH(content, u8, '\t');
+      c = '\t';
+      vector_push(content, &c);
       n++;
       break;
     case 'u':
@@ -328,7 +333,7 @@ u64 __json_parse_string(JsonValue *js, string8 s) {
         exit(1);
       }
       for (u8 ibyte = 0; ibyte < n_byte; ++ibyte) {
-        VEC_PUSH(content, u8, encoded[ibyte]);
+        vector_push(content, &encoded[ibyte]);
       }
       break;
     default:
@@ -343,7 +348,7 @@ u64 __json_parse_string(JsonValue *js, string8 s) {
   js->type = String;
   js->value = malloc(sizeof(string8));
   *(string8 *)js->value =
-      (string8){.str = content->data, .size = content->size};
+      (string8){.str = content->items, .size = content->size};
   free(content);
   return n + 1;
 }
@@ -422,7 +427,7 @@ u64 __json_parse_array(JsonValue *js, string8 s) {
       fprintf(stderr, "Could not parse json entry\n");
       exit(1);
     }
-    VEC_PUSH(vec, JsonValue *, value);
+    vector_push(vec, &value);
     n += n_parsed;
     while (n < s.size && isspace(s.str[n]))
       n++;

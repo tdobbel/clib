@@ -88,7 +88,6 @@ b32 tree_add(kdtree *tree, const f64 *x);
 void search_radius(kdtree *tree, const f64 *xp, f64 radius, vector *result);
 kdtree tree_from_points(u64 n, const f64 *x, f64 buffer);
 
-
 #ifdef KDTREE_IMPLEMENTATION
 
 kdtree tree_create(const f64 *xmin, const f64 *xmax) {
@@ -196,7 +195,7 @@ void cell_search_radius(cell *c, const f64 *xp, f64 radius, vector *result) {
       f64 d = compute_distance(xp, c->leaf->x[i]);
       if (d < radius) {
         kdt_pair pair = (kdt_pair){.index = c->leaf->id[i], .distance = d};
-        VEC_PUSH(result, kdt_pair, pair);
+        vector_push(result, &pair);
       }
     }
   }
