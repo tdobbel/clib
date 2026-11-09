@@ -64,6 +64,7 @@ void str_split(vector *vec, string8 base, string8 sep);
 
 #define VEC_CREATE(T) vector_create(NULL, sizeof(T))
 #define VEC_ARENA_CREATE(a, T) vector_create(a, sizeof(T))
+#define VEC_CAST(v, T) (T*)(v)->items;
 
 #define HVEC_LEN(vec) ((vec_meta *)(vec) - 1)->size
 
