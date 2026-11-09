@@ -131,6 +131,39 @@ b8 priority_queue_pop(PriorityQueue *self, void *dst);
 #define PRIORITY_QUEUE_CREATE(T, ctx, compareFn)                               \
   priority_queue_init(sizeof(T), ctx, compareFn)
 
+// Linked list
+
+typedef struct ll_node Node;
+
+struct ll_node {
+  u8 *item;
+  Node *previous, *next;
+};
+
+typedef struct {
+  u64 item_size, size;
+  Node *head, *tail;
+} LinkedList;
+
+LinkedList *ll_init(u64 item_size);
+void ll_deinit(LinkedList *self);
+
+Node *__ll_get_node(LinkedList *self, u64 index);
+Node *__ll_node_init(LinkedList *self, const void *item);
+
+void ll_push(LinkedList *self, const void *item);
+void ll_push_first(LinkedList *self, const void *item);
+void ll_insert(LinkedList *self, const void *item, u64 index);
+
+void ll_get(LinkedList *self, void *item, u64 index);
+void *ll_get_ref(LinkedList *self, u64 index);
+
+void ll_pop_index(LinkedList *self, void *item, u64 index);
+b8 ll_pop_first(LinkedList *self, void *item);
+b8 ll_pop_last(LinkedList *self, void *item);
+
+#define LINKED_LIST_CREATE(T) ll_init(sizeof(T))
+
 #ifdef VECTOR_IMPLEMENTATION
 
 vector *vector_create(mem_arena *arena, u64 elem_size) {
@@ -425,6 +458,143 @@ b8 priority_queue_pop(PriorityQueue *self, void *dst) {
   if (priority_queue_len(self) == 0)
     return false;
   priority_queue_pop_index(self, dst, 0);
+  return true;
+}
+
+LinkedList *ll_init(u64 item_size) {
+  LinkedList *self = malloc(sizeof(LinkedList));
+  self->item_size = item_size;
+  self->size = 0;
+  self->head = NULL;
+  self->tail = NULL;
+  return self;
+}
+
+void ll_deinit(LinkedList *self) {
+  Node *node = self->head;
+  Node *tmp;
+  while (node) {
+    tmp = node->next;
+    free(node->item);
+    free(node);
+    node = tmp;
+  }
+  free(self);
+}
+
+Node *__ll_node_init(LinkedList *self, const void *item) {
+  Node *node = (Node *)malloc(sizeof(Node));
+  node->item = (u8 *)malloc(self->item_size);
+  memcpy(node->item, item, self->item_size);
+  node->next = NULL;
+  node->previous = NULL;
+  return node;
+}
+
+void ll_push(LinkedList *self, const void *item) {
+  Node *node = __ll_node_init(self, item);
+  self->size++;
+  if (self->tail) {
+    Node *prev = self->tail;
+    prev->next = node;
+    node->previous = prev;
+    self->tail = node;
+    return;
+  }
+  assert(self->size == 1);
+  self->head = node;
+  self->tail = node;
+}
+
+void ll_push_first(LinkedList *self, const void *item) {
+  Node *node = __ll_node_init(self, item);
+  self->size++;
+  if (self->head) {
+    Node *next = self->head;
+    node->next = next;
+    next->previous = node;
+    self->head = node;
+    return;
+  }
+  assert(self->size == 1);
+  self->head = node;
+  self->tail = node;
+}
+
+void ll_insert(LinkedList *self, const void *item, u64 index) {
+  assert(index <= self->size);
+  if (index == 0) {
+    ll_push_first(self, item);
+    return;
+  }
+  if (index == self->size) {
+    ll_push(self, item);
+    return;
+  }
+  Node *new_node = __ll_node_init(self, item);
+  Node *old_node = __ll_get_node(self, index);
+  new_node->previous = old_node->previous;
+  new_node->next = old_node;
+  old_node->previous = new_node;
+  self->size++;
+}
+
+Node *__ll_get_node(LinkedList *self, u64 index) {
+  assert(index < self->size);
+  Node *node;
+  if (index <= self->size / 2) {
+    node = self->head;
+    for (u64 i = 0; i < index; ++i) {
+      node = node->next;
+    }
+    return node;
+  }
+  node = self->tail;
+  for (u64 i = self->size - 1; i > index; --i) {
+    node = node->previous;
+  }
+  return node;
+}
+
+void ll_get(LinkedList *self, void *item, u64 index) {
+  Node *node = __ll_get_node(self, index);
+  memcpy(item, node->item, self->item_size);
+}
+
+void *ll_get_ref(LinkedList *self, u64 index) {
+  Node *node = __ll_get_node(self, index);
+  return node->item;
+}
+
+void ll_pop_index(LinkedList *self, void *item, u64 index) {
+  Node *node = __ll_get_node(self, index);
+  memcpy(item, node->item, self->item_size);
+  Node *prev = node->previous;
+  Node *next = node->next;
+  if (prev)
+    prev->next = next;
+  else // we are first
+    self->head = next;
+  if (next)
+    next->previous = prev;
+  else // we are last
+    self->tail = prev;
+  self->size--;
+  free(node->item);
+  free(node);
+}
+
+b8 ll_pop_first(LinkedList *self, void *item) {
+  if (self->size == 0)
+    return false;
+  ll_pop_index(self, item, 0);
+  return true;
+}
+
+b8 ll_pop_last(LinkedList *self, void *item) {
+  if (self->size == 0)
+    return false;
+  ll_pop_index(self, item, self->size - 1);
   return true;
 }
 
